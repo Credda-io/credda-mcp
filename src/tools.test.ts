@@ -1,0 +1,362 @@
+import { describe, it, expect, vi } from 'vitest';
+import {
+  checkTrust,
+  getTrustExportTool,
+  verifyTrustCredentialTool,
+  verifyVerifiableCredentialTool,
+  mintMyTrustToken,
+  presentMyCredential,
+  checkDeliveryReceipts,
+  presentMyDeliveryReceipts,
+  getUserScore,
+  explainUserScore,
+  createScoreMonitor,
+  listScoreMonitors,
+  deleteScoreMonitor,
+  getMyUsage,
+  listWebhookEventTypes,
+  getDidDocumentResource,
+  getTrustRegistryResource,
+  type ToolContext,
+} from './tools.js';
+
+function fakeClient(overrides: Record<string, unknown> = {}) {
+  return {
+    resolveToken: vi.fn(),
+    getTrustExport: vi.fn(),
+    verifyCredential: vi.fn(),
+    verifyVerifiableCredential: vi.fn(),
+    mintShareToken: vi.fn(),
+    getDidDocument: vi.fn(),
+    getTrustRegistry: vi.fn(),
+    getScore: vi.fn(),
+    getScoreExplain: vi.fn(),
+    createMonitor: vi.fn(),
+    listMonitors: vi.fn(),
+    deleteMonitor: vi.fn(),
+    getUsage: vi.fn(),
+    getWebhookEvents: vi.fn(),
+    getDeliveryReceipts: vi.fn(),
+    ...overrides,
+  } as unknown as ToolContext['client'];
+}
+
+describe('checkTrust', () => {
+  it('resolves the token and shapes a compact payload with the credential', async () => {
+    const client = fakeClient({
+      resolveToken: vi.fn(async (token: string) => ({
+        token,
+        finalScore: 82,
+        scoreBand: 'Excellent',
+        confidence: 1,
+        verifiedPlatforms: 3,
+        totalEvents: 40,
+        scoreFrozen: false,
+        formulaVersion: '3.0',
+        computedAt: '2026-07-19T00:00:00.000Z',
+        issuer: 'credda.io',
+        credential: 'eyJ.compact.jwt',
+        credentialKid: 'k1',
+        credentialExp: '2026-07-19T01:00:00.000Z',
+        jwksUri: '/.well-known/jwks.json',
+      })),
+    });
+    const result = await checkTrust({ client }, { token: 'crd_share_abc' });
+    expect(client.resolveToken).toHaveBeenCalledWith('crd_share_abc');
+    expect(result.finalScore).toBe(82);
+    expect(result.scoreBand).toBe('Excellent');
+    expect(result.credential).toBe('eyJ.compact.jwt');
+  });
+});
+
+describe('getTrustExportTool', () => {
+  it('passes through the client export bundle', async () => {
+    const bundle = { format: 'credda-trust-export/1' };
+    const client = fakeClient({ getTrustExport: vi.fn(async () => bundle) });
+    const result = await getTrustExportTool({ client }, { token: 'crd_share_abc' });
+    expect(client.getTrustExport).toHaveBeenCalledWith('crd_share_abc');
+    expect(result).toBe(bundle);
+  });
+});
+
+describe('verifyTrustCredentialTool', () => {
+  it('delegates to client.verifyCredential', async () => {
+    const verified = { valid: true, issuer: 'credda.io', subject: 'crd_share_abc' };
+    const client = fakeClient({ verifyCredential: vi.fn(async () => verified) });
+    const result = await verifyTrustCredentialTool({ client }, { credential: 'eyJ.jwt' });
+    expect(client.verifyCredential).toHaveBeenCalledWith('eyJ.jwt');
+    expect(result).toBe(verified);
+  });
+
+  it('propagates rejection for an invalid credential', async () => {
+    const client = fakeClient({
+      verifyCredential: vi.fn(async () => { throw new Error('credda: signature invalid'); }),
+    });
+    await expect(verifyTrustCredentialTool({ client }, { credential: 'bad' })).rejects.toThrow(
+      'credda: signature invalid',
+    );
+  });
+});
+
+describe('verifyVerifiableCredentialTool', () => {
+  it('delegates to client.verifyVerifiableCredential', async () => {
+    const verified = { valid: true, issuer: 'did:web:api.credda.io', subject: 'crd_share_abc' };
+    const client = fakeClient({ verifyVerifiableCredential: vi.fn(async () => verified) });
+    const result = await verifyVerifiableCredentialTool({ client }, { vcJwt: 'eyJ.vc.jwt' });
+    expect(client.verifyVerifiableCredential).toHaveBeenCalledWith('eyJ.vc.jwt');
+    expect(result).toBe(verified);
+  });
+});
+
+describe('mintMyTrustToken', () => {
+  it('mints a token using the configured self identity', async () => {
+    const minted = { token: 'crd_share_new', verifyUrl: 'https://api.credda.io/v/crd_share_new', embedSnippet: '', widgetSrc: '' };
+    const client = fakeClient({ mintShareToken: vi.fn(async () => minted) });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', selfUserId: 'user_1' };
+    const result = await mintMyTrustToken(ctx);
+    expect(client.mintShareToken).toHaveBeenCalledWith('user_1', 'crd_live_xyz');
+    expect(result).toBe(minted);
+  });
+
+  it('rejects with a clear config error when apiKey/selfUserId are missing', async () => {
+    const client = fakeClient();
+    await expect(mintMyTrustToken({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.mintShareToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('presentMyCredential', () => {
+  it('mints a token then fetches its export bundle in one call', async () => {
+    const minted = { token: 'crd_share_new', verifyUrl: 'https://api.credda.io/v/crd_share_new', embedSnippet: '', widgetSrc: '' };
+    const bundle = { format: 'credda-trust-export/1', credential: 'eyJ.vc.jwt' };
+    const client = fakeClient({
+      mintShareToken: vi.fn(async () => minted),
+      getTrustExport: vi.fn(async () => bundle),
+    });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', selfUserId: 'user_1' };
+    const result = await presentMyCredential(ctx);
+    expect(client.mintShareToken).toHaveBeenCalledWith('user_1', 'crd_live_xyz');
+    expect(client.getTrustExport).toHaveBeenCalledWith('crd_share_new');
+    expect(result).toEqual({ token: 'crd_share_new', verifyUrl: minted.verifyUrl, export: bundle });
+  });
+
+  it('rejects with a clear config error when apiKey/selfUserId are missing', async () => {
+    const client = fakeClient();
+    await expect(presentMyCredential({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.mintShareToken).not.toHaveBeenCalled();
+    expect(client.getTrustExport).not.toHaveBeenCalled();
+  });
+});
+
+describe('getUserScore', () => {
+  it('reads the score with the configured key and shapes a compact payload', async () => {
+    const client = fakeClient({
+      getScore: vi.fn(async () => ({
+        userId: 'ext_1',
+        finalScore: 71,
+        scoreBand: 'Good',
+        confidence: 0.9,
+        breakdown: { completionRate: 0.95 },
+        formulaVersion: '5.3',
+        velocityFlag: false,
+        computedAt: '2026-07-22T00:00:00.000Z',
+      })),
+    });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const result = await getUserScore(ctx, { userId: 'ext_1' });
+    expect(client.getScore).toHaveBeenCalledWith('ext_1', 'crd_live_xyz');
+    expect(result.finalScore).toBe(71);
+    expect(result.scoreBand).toBe('Good');
+    expect(result.formulaVersion).toBe('5.3');
+    expect(result.scoreFrozen).toBe(false);
+  });
+
+  it('rejects with a clear config error when the key is missing', async () => {
+    const client = fakeClient();
+    await expect(getUserScore({ client }, { userId: 'ext_1' })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.getScore).not.toHaveBeenCalled();
+  });
+});
+
+describe('explainUserScore', () => {
+  it('delegates to client.getScoreExplain with the configured key', async () => {
+    const explain = { summary: 'Reliable', factors: [], confidence: { level: 'high' } };
+    const client = fakeClient({ getScoreExplain: vi.fn(async () => explain) });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const result = await explainUserScore(ctx, { userId: 'ext_1' });
+    expect(client.getScoreExplain).toHaveBeenCalledWith('ext_1', 'crd_live_xyz');
+    expect(result).toBe(explain);
+  });
+
+  it('rejects with a clear config error when the key is missing', async () => {
+    const client = fakeClient();
+    await expect(explainUserScore({ client }, { userId: 'ext_1' })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.getScoreExplain).not.toHaveBeenCalled();
+  });
+});
+
+describe('createScoreMonitor', () => {
+  it('creates a monitor and unwraps the result', async () => {
+    const monitor = {
+      id: 'mon_1', userId: 'ext_1', belowScore: 40, aboveScore: null, onBandChange: true,
+      isActive: true, lastTriggeredAt: null, createdAt: 'now', updatedAt: 'now',
+    };
+    const client = fakeClient({ createMonitor: vi.fn(async () => ({ monitor })) });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const result = await createScoreMonitor(ctx, { userId: 'ext_1', belowScore: 40, onBandChange: true });
+    expect(client.createMonitor).toHaveBeenCalledWith(
+      { userId: 'ext_1', belowScore: 40, aboveScore: undefined, onBandChange: true },
+      'crd_live_xyz',
+    );
+    expect(result).toBe(monitor);
+  });
+
+  it('rejects with a clear config error when the key is missing', async () => {
+    const client = fakeClient();
+    await expect(createScoreMonitor({ client }, { userId: 'ext_1', belowScore: 40 })).rejects.toThrow(
+      /CREDDA_API_KEY/,
+    );
+    expect(client.createMonitor).not.toHaveBeenCalled();
+  });
+});
+
+describe('listScoreMonitors', () => {
+  it('lists monitors, passing pagination through', async () => {
+    const page = { data: [{ id: 'mon_1' }], nextCursor: null };
+    const client = fakeClient({ listMonitors: vi.fn(async () => page) });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const result = await listScoreMonitors(ctx, { limit: 10, cursor: 'c1' });
+    expect(client.listMonitors).toHaveBeenCalledWith('crd_live_xyz', { limit: 10, cursor: 'c1' });
+    expect(result).toBe(page);
+  });
+
+  it('rejects with a clear config error when the key is missing', async () => {
+    const client = fakeClient();
+    await expect(listScoreMonitors({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.listMonitors).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteScoreMonitor', () => {
+  it('deletes the monitor and confirms', async () => {
+    const client = fakeClient({ deleteMonitor: vi.fn(async () => undefined) });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const result = await deleteScoreMonitor(ctx, { id: 'mon_1' });
+    expect(client.deleteMonitor).toHaveBeenCalledWith('mon_1', 'crd_live_xyz');
+    expect(result).toEqual({ deleted: true, id: 'mon_1' });
+  });
+
+  it('rejects with a clear config error when the key is missing', async () => {
+    const client = fakeClient();
+    await expect(deleteScoreMonitor({ client }, { id: 'mon_1' })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.deleteMonitor).not.toHaveBeenCalled();
+  });
+});
+
+describe('getMyUsage', () => {
+  it('reads usage for the configured key with an optional window', async () => {
+    const usage = { platform: { id: 'p1', name: 'Acme', tier: 'GROWTH' }, days: [] };
+    const client = fakeClient({ getUsage: vi.fn(async () => usage) });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const result = await getMyUsage(ctx, { days: 30 });
+    expect(client.getUsage).toHaveBeenCalledWith('crd_live_xyz', 30);
+    expect(result).toBe(usage);
+  });
+
+  it('rejects with a clear config error when the key is missing', async () => {
+    const client = fakeClient();
+    await expect(getMyUsage({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.getUsage).not.toHaveBeenCalled();
+  });
+});
+
+describe('listWebhookEventTypes', () => {
+  it('is public — delegates to client.getWebhookEvents without any key', async () => {
+    const catalog = { events: [{ type: 'monitor.triggered' }], envelope: {} };
+    const client = fakeClient({ getWebhookEvents: vi.fn(async () => catalog) });
+    const result = await listWebhookEventTypes({ client });
+    expect(client.getWebhookEvents).toHaveBeenCalled();
+    expect(result).toBe(catalog);
+  });
+});
+
+describe('getDidDocumentResource', () => {
+  it('delegates to client.getDidDocument', async () => {
+    const doc = { id: 'did:web:api.credda.io', service: [] };
+    const client = fakeClient({ getDidDocument: vi.fn(async () => doc) });
+    const result = await getDidDocumentResource({ client });
+    expect(client.getDidDocument).toHaveBeenCalled();
+    expect(result).toBe(doc);
+  });
+});
+
+describe('getTrustRegistryResource', () => {
+  it('delegates to client.getTrustRegistry', async () => {
+    const registry = { version: '1', issuers: [{ did: 'did:web:api.credda.io' }] };
+    const client = fakeClient({ getTrustRegistry: vi.fn(async () => registry) });
+    const result = await getTrustRegistryResource({ client });
+    expect(client.getTrustRegistry).toHaveBeenCalled();
+    expect(result).toBe(registry);
+  });
+});
+
+// ── Agent delivery receipts ──────────────────────────────────────────────────
+
+const RECEIPTS = {
+  token: 'crd_share_abc',
+  subjectType: 'agent' as const,
+  agent: { operatorName: 'Acme AI', operatorIsRegisteredPlatform: true },
+  deliveryRecord: {
+    deliveries: 12,
+    confirmedDeliveries: 9,
+    unconfirmedDeliveries: 3,
+    selfAttestedDeliveries: 3,
+    failures: 1,
+    disputes: 0,
+    onTimeConfirmedDeliveries: 8,
+    onTimeRate: 8 / 9,
+    firstRecordedAt: '2026-01-01T00:00:00.000Z',
+    lastRecordedAt: '2026-07-01T00:00:00.000Z',
+  },
+  score: { finalScore: 61, scoreBand: 'Good', confidence: 0.8, formulaVersion: '5.3', computedAt: null, scoreFrozen: false },
+  disclaimer: { isA: 'record', isNot: ['not a rating'], selfDealingRule: 'operator cannot confirm' },
+  credentialVc: 'eyJ.vc.jwt',
+  issuer: 'did:web:api.credda.io',
+  expiresAt: '2026-07-22T01:00:00.000Z',
+  kid: 'did:web:api.credda.io#k1',
+};
+
+describe('checkDeliveryReceipts', () => {
+  it('is public — needs no API key and returns the evidence, not a verdict', async () => {
+    const client = fakeClient({ getDeliveryReceipts: vi.fn(async () => RECEIPTS) });
+    const result = await checkDeliveryReceipts({ client }, { token: 'crd_share_abc' });
+    expect(client.getDeliveryReceipts).toHaveBeenCalledWith('crd_share_abc');
+    expect(result.deliveryRecord.confirmedDeliveries).toBe(9);
+    expect(result.deliveryRecord.selfAttestedDeliveries).toBe(3);
+    expect(result.credentialVc).toBe('eyJ.vc.jwt');
+    // No verdict field of any kind is synthesized by the tool.
+    for (const banned of ['recommendation', 'verdict', 'rating', 'decision', 'approved']) {
+      expect(Object.keys(result)).not.toContain(banned);
+    }
+  });
+});
+
+describe('presentMyDeliveryReceipts', () => {
+  it('mints a fresh token for the configured subject and returns its receipts', async () => {
+    const client = fakeClient({
+      mintShareToken: vi.fn(async () => ({ token: 'crd_share_abc', verifyUrl: 'https://api.credda.io/api/v1/verify/crd_share_abc' })),
+      getDeliveryReceipts: vi.fn(async () => RECEIPTS),
+    });
+    const result = await presentMyDeliveryReceipts({ client, apiKey: 'crd_live_k', selfUserId: 'agent-1' });
+    expect(client.mintShareToken).toHaveBeenCalledWith('agent-1', 'crd_live_k');
+    expect(client.getDeliveryReceipts).toHaveBeenCalledWith('crd_share_abc');
+    expect(result.token).toBe('crd_share_abc');
+    expect(result.receipts.deliveryRecord.confirmedDeliveries).toBe(9);
+  });
+
+  it('refuses without CREDDA_API_KEY / CREDDA_USER_ID — it never acts for a counterparty', async () => {
+    const client = fakeClient();
+    await expect(presentMyDeliveryReceipts({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(presentMyDeliveryReceipts({ client, apiKey: 'k' })).rejects.toThrow(/CREDDA_USER_ID/);
+  });
+});

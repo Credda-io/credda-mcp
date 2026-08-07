@@ -1,0 +1,41 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Credda-io/credda-trust",
+  "title": "Credda Trust",
+  "description": "Check a counterparty's verifiable Credda trust record; verify or present signed credentials.",
+  "version": "0.1.4",
+  "websiteUrl": "https://api.credda.io",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@credda/mcp-server",
+      "version": "0.1.4",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CREDDA_API_KEY",
+          "description": "Optional Credda platform API key. Without it the public read/verify tools still work; with it the platform tools (score reads, monitors, usage) are enabled.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "CREDDA_USER_ID",
+          "description": "Optional. The external id this server presents credentials for; needed only by mint_my_trust_token and present_my_credential (with CREDDA_API_KEY).",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CREDDA_API_BASE",
+          "description": "Optional override for the Credda API base URL, e.g. for a staging deployment.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "https://api.credda.io"
+        }
+      ]
+    }
+  ]
+}

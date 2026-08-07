@@ -1,0 +1,47 @@
+{
+  "name": "@credda/mcp-server",
+  "version": "0.1.4",
+  "mcpName": "io.github.Credda-io/credda-trust",
+  "description": "MCP server exposing Credda's verifiable, bias-free trust layer to AI agents — check a counterparty's Credda trust before transacting, verify a credential they present to you, and mint your own to present back. Wraps existing public /verify endpoints; no scoring logic lives here.",
+  "license": "MIT",
+  "homepage": "https://github.com/Credda-io/credda-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/Credda-io/credda-mcp/issues",
+    "email": "martin@credda.io"
+  },
+  "type": "module",
+  "bin": {
+    "credda-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "node -e \"const ua=process.env.npm_config_user_agent||'';if(!ua.startsWith('pnpm')){console.error('\\n  Refusing to publish with npm.\\n\\n  This package depends on @credda/js via workspace:*. pnpm rewrites\\n  that to a real version range while packing; npm ships it verbatim,\\n  and every consumer install then fails with:\\n\\n    npm error Unsupported URL Type \\\\\\\"workspace:\\\\\\\"\\n\\n  Use: pnpm publish --filter <name>\\n');process.exit(1)}\""
+  },
+  "dependencies": {
+    "@credda/js": "^0.6.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "tsx": "^4.23.1",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.6"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Credda-io/credda-mcp.git"
+  }
+}
