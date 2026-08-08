@@ -1,6 +1,6 @@
 {
   "name": "@credda/mcp-server",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "mcpName": "io.github.Credda-io/credda-trust",
   "description": "MCP server exposing Credda's verifiable, bias-free trust layer to AI agents — check a counterparty's Credda trust before transacting, verify a credential they present to you, and mint your own to present back. Wraps existing public /verify endpoints; no scoring logic lives here.",
   "license": "MIT",
