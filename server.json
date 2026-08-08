@@ -3,14 +3,14 @@
   "name": "io.github.Credda-io/credda-trust",
   "title": "Credda Trust",
   "description": "Check a counterparty's verifiable Credda trust record; verify or present signed credentials.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "websiteUrl": "https://api.credda.io",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@credda/mcp-server",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
