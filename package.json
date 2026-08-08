@@ -42,5 +42,17 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Credda-io/credda-mcp.git"
+  },
+  "keywords": [
+    "credda",
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "trust",
+    "reliability-score",
+    "verifiable-credentials"
+  ],
+  "engines": {
+    "node": ">=18"
   }
 }
