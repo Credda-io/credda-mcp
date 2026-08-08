@@ -81,3 +81,15 @@ Credda's score is a deterministic function of an append-only ledger of counterpa
 events. No human and no AI sets or adjusts it, and the formula is published at
 [`GET /api/v1/scoring/model`](https://api.credda.io/api/v1/scoring/model). Minting a token or
 reading a score through this server changes nothing.
+
+## License
+
+MIT © Credda. See [LICENSE](LICENSE).
+
+---
+
+Part of the Credda SDK family:
+[`@credda/js`](https://github.com/Credda-io/credda-js) ·
+[`credda-go`](https://github.com/Credda-io/credda-go) ·
+[`@credda/cli`](https://github.com/Credda-io/credda-cli) ·
+[`@credda/mcp-server`](https://github.com/Credda-io/credda-mcp)
