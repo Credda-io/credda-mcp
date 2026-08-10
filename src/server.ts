@@ -251,7 +251,15 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
         'breakdown (completion rate, on-time rate, dispute rate, verification depth), platform trust, ' +
         'consistency, momentum, and confidence level. Requires CREDDA_API_KEY. This explains EVIDENCE ' +
         'only; Credda deliberately has no "evaluate/recommend this person" endpoint; the decision ' +
-        'stays with you, made against transparent facts.',
+        'stays with you, made against transparent facts. ' +
+        'UNMEASURED IS NOT ZERO: read `dataSufficiency` first. A factor whose `available` is false ' +
+        'carries `value` and `contribution` as null because the record has NO recorded outcomes and ' +
+        'every rate has a zero denominator. That is UNKNOWN, not poor, and must never be reported ' +
+        'as 0 or as "0% completion". When `reasonCodes.insufficientData` is true, ' +
+        '`adverseActionReasons` and `supportingFactors` are EMPTY by construction and the single ' +
+        'informational code is not an adverse reason; `reasonCodes.dataState` says whether the record ' +
+        'has no outcomes at all or outcomes whose score is not computed yet. A MEASURED zero reports ' +
+        '`available: true` with a real 0 and must still be reported.',
       inputSchema: { userId: z.string().min(1).describe("The user's external id on your platform") },
     },
     async ({ userId }) => {
