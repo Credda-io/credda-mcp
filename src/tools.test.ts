@@ -271,7 +271,7 @@ describe('getMyUsage', () => {
 });
 
 describe('listWebhookEventTypes', () => {
-  it('is public — delegates to client.getWebhookEvents without any key', async () => {
+  it('is public: delegates to client.getWebhookEvents without any key', async () => {
     const catalog = { events: [{ type: 'monitor.triggered' }], envelope: {} };
     const client = fakeClient({ getWebhookEvents: vi.fn(async () => catalog) });
     const result = await listWebhookEventTypes({ client });
@@ -327,7 +327,7 @@ const RECEIPTS = {
 };
 
 describe('checkDeliveryReceipts', () => {
-  it('is public — needs no API key and returns the evidence, not a verdict', async () => {
+  it('is public: needs no API key and returns the evidence, not a verdict', async () => {
     const client = fakeClient({ getDeliveryReceipts: vi.fn(async () => RECEIPTS) });
     const result = await checkDeliveryReceipts({ client }, { token: 'crd_share_abc' });
     expect(client.getDeliveryReceipts).toHaveBeenCalledWith('crd_share_abc');
@@ -354,7 +354,7 @@ describe('presentMyDeliveryReceipts', () => {
     expect(result.receipts.deliveryRecord.confirmedDeliveries).toBe(9);
   });
 
-  it('refuses without CREDDA_API_KEY / CREDDA_USER_ID — it never acts for a counterparty', async () => {
+  it('refuses without CREDDA_API_KEY / CREDDA_USER_ID: it never acts for a counterparty', async () => {
     const client = fakeClient();
     await expect(presentMyDeliveryReceipts({ client })).rejects.toThrow(/CREDDA_API_KEY/);
     await expect(presentMyDeliveryReceipts({ client, apiKey: 'k' })).rejects.toThrow(/CREDDA_USER_ID/);

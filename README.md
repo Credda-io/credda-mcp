@@ -7,7 +7,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that puts
 counterparty's Credda record from a share token they hand you, offline-verify a credential they
 present, and present your own back.
 
-It is a thin client over Credda's public API — no database, no scoring logic. Nothing it exposes
+It is a thin client over Credda's public API: no database, no scoring logic. Nothing it exposes
 can write to Credda's append-only event ledger or change anyone's score, and there is deliberately
 **no** "evaluate this person" tool: it returns evidence, and the decision stays with the caller.
 
@@ -41,19 +41,19 @@ That is enough for every public tool. Add credentials only for the platform tool
 
 | Variable | Needed for |
 |----------|------------|
-| `CREDDA_API_KEY` | The platform tools — score reads, monitors, usage. |
+| `CREDDA_API_KEY` | The platform tools: score reads, monitors, usage. |
 | `CREDDA_USER_ID` | Additionally required by `mint_my_trust_token` / `present_my_credential` / `present_my_delivery_receipts`. |
 | `CREDDA_API_BASE` | Optional override of `https://api.credda.io` (e.g. a staging deployment). |
 
 ## Tools
 
-Public — no key, driven entirely by a token or credential a counterparty hands you:
+Public, no key, driven entirely by a token or credential a counterparty hands you:
 
 | Tool | What it does |
 |------|--------------|
 | `check_trust` | Resolve a share token to the subject's score, band and a signed credential. |
 | `get_trust_export` | The full portable bundle: score, history, signed W3C VC, revocation pointer. |
-| `check_delivery_receipts` | A subject's delivery record — deliveries recorded, how many a distinct counterparty confirmed, failures, disputes, on-time rate — plus a signed credential of it. |
+| `check_delivery_receipts` | A subject's delivery record (deliveries recorded, how many a distinct counterparty confirmed, failures, disputes, on-time rate) plus a signed credential of it. |
 | `verify_trust_credential` | Offline-verify a compact EdDSA JWT credential presented to you. |
 | `verify_verifiable_credential` | Offline-verify a W3C VC-JWT, resolving `did:web:api.credda.io` and checking revocation. |
 | `list_webhook_event_types` | The public catalog of outbound webhook event types. |
@@ -72,8 +72,8 @@ With `CREDDA_API_KEY`:
 
 | Resource | URI |
 |----------|-----|
-| `trust_registry` | `credda-trust://registry` — Credda's issuer entry and any federated issuers it recognizes. |
-| `issuer_did_document` | `credda-trust://did` — the `did:web` document behind every signature. |
+| `trust_registry` | `credda-trust://registry`, Credda's issuer entry and any federated issuers it recognizes. |
+| `issuer_did_document` | `credda-trust://did`, the `did:web` document behind every signature. |
 
 ## How a score is produced
 

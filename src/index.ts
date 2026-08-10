@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Credda trust MCP server — stdio entrypoint.
+ * Credda trust MCP server (stdio entrypoint).
  *
  * Gives an AI agent (Claude Desktop, Claude Code, or any MCP client) direct
  * access to Credda's verifiable, bias-free trust layer: look up a

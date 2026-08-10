@@ -1,5 +1,5 @@
 /**
- * MCP server wiring — registers Credda's agent-native trust tools on an
+ * MCP server wiring: registers Credda's agent-native trust tools on an
  * `McpServer`. Kept separate from `index.ts` (the stdio entrypoint) and
  * `tools.ts` (the pure handlers) so this can be constructed and inspected in
  * tests without a live stdio transport.
