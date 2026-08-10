@@ -1,7 +1,7 @@
 /**
  * Drift guard for the MCP Registry listing (`packages/mcp/server.json`).
  *
- * The registry format forces us to restate things the package already knows —
+ * The registry format forces us to restate things the package already knows:
  * the npm package name, its version, and the registry server name (which npm
  * ownership verification reads back out of the published `package.json` as
  * `mcpName`). That is exactly the "copied constant goes stale" class this repo

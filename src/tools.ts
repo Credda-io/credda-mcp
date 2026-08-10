@@ -1,10 +1,10 @@
 /**
- * Pure tool handlers — no MCP SDK types here, so they're testable with a
+ * Pure tool handlers: no MCP SDK types here, so they're testable with a
  * plain mocked `CreddaClient`. `src/server.ts` wires these into MCP tool
  * registrations (schemas, titles, descriptions).
  *
  * Every tool is READ-ONLY against Credda's deterministic score. None of them
- * write an Event, adjust a score, or make a trust decision — they let an
+ * write an Event, adjust a score, or make a trust decision. They let an
  * agent look up and offline-verify EXISTING, already-computed trust facts.
  * The "mint" tool issues a new share token (a capability, not a score write).
  */
@@ -48,7 +48,7 @@ export async function checkTrust(ctx: ToolContext, args: { token: string }) {
     formulaVersion: payload.formulaVersion,
     computedAt: payload.computedAt,
     issuer: payload.issuer,
-    /** Signed Verifiable Trust Credential — pass to `verify_trust_credential` to check it offline. */
+    /** Signed Verifiable Trust Credential. Pass to `verify_trust_credential` to check it offline. */
     credential: payload.credential,
   };
 }
@@ -85,13 +85,13 @@ export async function presentMyCredential(ctx: ToolContext) {
 // ── Agent delivery receipts (the agent-to-agent handshake) ───────────────────
 //
 // The two sides of the same exchange: present YOUR delivery record, and check
-// theirs. Both return EVIDENCE — counts of what was delivered and how much of it
+// theirs. Both return EVIDENCE: counts of what was delivered and how much of it
 // an independent counterparty confirmed. Neither returns a verdict, a rating, or
 // a recommendation, and there is deliberately no tool that does.
 
 /**
  * Check a counterparty's delivery record from the share token they handed you.
- * Public — no key needed.
+ * Public, no key needed.
  */
 export async function checkDeliveryReceipts(ctx: ToolContext, args: { token: string }) {
   const r = await ctx.client.getDeliveryReceipts(args.token);
@@ -102,7 +102,7 @@ export async function checkDeliveryReceipts(ctx: ToolContext, args: { token: str
     deliveryRecord: r.deliveryRecord,
     score: r.score,
     disclaimer: r.disclaimer,
-    /** Signed W3C credential of the record — offline-check it with verify_verifiable_credential. */
+    /** Signed W3C credential of the record. Offline-check it with verify_verifiable_credential. */
     credentialVc: r.credentialVc,
     issuer: r.issuer,
     expiresAt: r.expiresAt,
@@ -112,8 +112,8 @@ export async function checkDeliveryReceipts(ctx: ToolContext, args: { token: str
 /**
  * Present YOUR OWN delivery record mid-negotiation: mints a fresh share token
  * for the configured subject and fetches its signed delivery credential in one
- * call, so a counterparty can verify it offline. Minting issues a capability —
- * it does not change a score.
+ * call, so a counterparty can verify it offline. Minting issues a capability.
+ * It does not change a score.
  */
 export async function presentMyDeliveryReceipts(ctx: ToolContext) {
   if (!ctx.apiKey || !ctx.selfUserId) notConfigured();
@@ -130,9 +130,9 @@ export async function presentMyDeliveryReceipts(ctx: ToolContext) {
 // ── Platform reads + continuous monitoring (CREDDA_API_KEY only) ──────────────
 // These act under the platform's OWN key: read a user's deterministic score /
 // its evidence breakdown, watch it with edge-triggered monitors (notification
-// config — a monitor never affects a score), and read the key's own usage.
+// config: a monitor never affects a score), and read the key's own usage.
 // None of them can write an Event or a ScoreSnapshot, and there is deliberately
-// no "evaluate this person" tool — Credda explains evidence, it never issues a
+// no "evaluate this person" tool: Credda explains evidence, it never issues a
 // verdict.
 
 export async function getUserScore(ctx: ToolContext, args: { userId: string }) {
@@ -193,7 +193,7 @@ export async function getMyUsage(ctx: ToolContext, args: { days?: number } = {})
 }
 
 /**
- * Public (no key): the outbound webhook event catalog — what a platform can
+ * Public (no key): the outbound webhook event catalog, what a platform can
  * subscribe to (incl. `monitor.triggered`, which the monitor tools above feed).
  */
 export async function listWebhookEventTypes(ctx: ToolContext) {
@@ -201,7 +201,7 @@ export async function listWebhookEventTypes(ctx: ToolContext) {
 }
 
 /**
- * Discovery docs (public, no key) for the two MCP resources below — a
+ * Discovery docs (public, no key) for the two MCP resources below: a
  * counterparty-verification agent's "who signs Credda's credentials, and who
  * else is federated into this trust network" lookup, without a tool call.
  */
