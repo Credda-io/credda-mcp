@@ -133,3 +133,41 @@ describe('serverInfo reported over the initialize handshake', () => {
     expect(info?.name).toBe(serverJson.name.slice(NAMESPACE.length));
   });
 });
+
+/**
+ * The tool DESCRIPTION is the interface an agent reads. It is the only place
+ * this server can say "a null here means unknown, not zero", because the wire
+ * payload carries the nulls but nothing that explains them.
+ *
+ * That sentence was written in the monorepo and never reached this mirror, so
+ * the published server told agents about the factor breakdown and said nothing
+ * about `dataSufficiency`. An agent reading `available: false` with a null rate
+ * and no guidance renders it as 0%, which is the exact defect the API was
+ * changed to prevent. Assert it over the real `tools/list` response rather than
+ * against the source string, because the response is the contract.
+ */
+describe('explain_user_score tells an agent that unmeasured is not zero', () => {
+  async function listTools() {
+    const server = buildServer();
+    const client = new Client({ name: 'drift-guard', version: '0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const { tools } = await client.listTools();
+    await client.close();
+    await server.close();
+    return tools;
+  }
+
+  it('names dataSufficiency and forbids rendering a null as 0', async () => {
+    const tools = await listTools();
+    const explain = tools.find((t) => t.name === 'explain_user_score');
+    expect(explain).toBeDefined();
+    const description = explain?.description ?? '';
+    expect(description).toContain('dataSufficiency');
+    expect(description).toContain('UNMEASURED IS NOT ZERO');
+    expect(description).toContain('reasonCodes.insufficientData');
+    // A measured zero is real and must still be reported; the guidance is not
+    // "hide zeros", which would be the opposite error.
+    expect(description).toContain('available: true');
+  });
+});
