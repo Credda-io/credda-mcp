@@ -27,6 +27,7 @@ import {
   getDidDocumentResource,
   getTrustRegistryResource,
   type ToolContext,
+  issuerDidFor,
 } from './tools.js';
 import { SERVER_NAME, SERVER_VERSION } from './version.js';
 
@@ -47,7 +48,13 @@ export interface CreddaMcpServerOptions {
 
 export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
   const client = new CreddaClient({ apiBase: options.apiBase });
-  const ctx: ToolContext = { client, apiKey: options.apiKey, selfUserId: options.selfUserId };
+  const ctx: ToolContext = {
+    client,
+    apiKey: options.apiKey,
+    selfUserId: options.selfUserId,
+    apiBase: options.apiBase,
+    issuerDid: issuerDidFor(options.apiBase),
+  };
 
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
 
