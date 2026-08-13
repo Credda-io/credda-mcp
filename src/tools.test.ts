@@ -28,7 +28,7 @@ vi.mock('@credda/js/headless', async (orig) => {
   const actual = await orig<Record<string, unknown>>();
   return { ...actual, verifyVerifiableCredential: vi.fn() };
 });
-const { verifyVerifiableCredential: verifySpy } = await import('@credda/js/headless');
+const verifySpy = vi.mocked((await import('@credda/js/headless')).verifyVerifiableCredential);
 
 function fakeClient(overrides: Record<string, unknown> = {}) {
   return {
