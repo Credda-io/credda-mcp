@@ -9,7 +9,7 @@
  * The "mint" tool issues a new share token (a capability, not a score write).
  */
 
-import type { CreddaClient } from '@credda/js/headless';
+import { verifyVerifiableCredential, type CreddaClient } from '@credda/js/headless';
 
 export interface ToolContext {
   client: CreddaClient;
@@ -17,6 +17,29 @@ export interface ToolContext {
   apiKey?: string;
   /** The userId the configured API key should mint/manage tokens for. */
   selfUserId?: string;
+  /** The API base this server talks to, so a verifier can fall back to its JWKS. */
+  apiBase?: string;
+  /**
+   * The issuer every credential verification must match, derived from the API
+   * base this server talks to.
+   *
+   * ⚠️ WITHOUT THIS, `verify_verifiable_credential` IS AN AGENT-FACING FORGERY
+   * ORACLE. did:web resolution proves a credential was signed by whoever
+   * controls the DID's host; it does not prove that host is Credda. An agent
+   * handed a credential minted under anyone's domain would be told it is valid,
+   * and agents act on that answer without a human reading it.
+   */
+  issuerDid: string;
+}
+
+/** The did:web identity of an API origin: `https://api.credda.io` -> `did:web:api.credda.io`. */
+export function issuerDidFor(apiBase: string | undefined): string {
+  const base = (apiBase ?? 'https://api.credda.io').replace(/\/+$/, '');
+  try {
+    return `did:web:${new URL(base).host.toLowerCase()}`;
+  } catch {
+    return 'did:web:api.credda.io';
+  }
 }
 
 function notConfigured(): never {
@@ -62,7 +85,13 @@ export async function verifyTrustCredentialTool(ctx: ToolContext, args: { creden
 }
 
 export async function verifyVerifiableCredentialTool(ctx: ToolContext, args: { vcJwt: string }) {
-  return ctx.client.verifyVerifiableCredential(args.vcJwt);
+  // The SDK's client wrapper takes no options, and the pinned SDK line has no
+  // issuer default, so the expectation is stated here where the untrusted input
+  // arrives. See ToolContext.issuerDid.
+  return verifyVerifiableCredential(args.vcJwt, {
+    apiBase: ctx.apiBase,
+    issuer: ctx.issuerDid,
+  });
 }
 
 export async function mintMyTrustToken(ctx: ToolContext) {

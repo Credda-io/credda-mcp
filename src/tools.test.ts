@@ -8,6 +8,7 @@ import {
   presentMyCredential,
   checkDeliveryReceipts,
   presentMyDeliveryReceipts,
+  issuerDidFor,
   getUserScore,
   explainUserScore,
   createScoreMonitor,
@@ -19,6 +20,15 @@ import {
   getTrustRegistryResource,
   type ToolContext,
 } from './tools.js';
+
+/** The issuer these fixtures pretend to be. */
+const TEST_ISSUER = 'did:web:api.credda.io';
+
+vi.mock('@credda/js/headless', async (orig) => {
+  const actual = await orig<Record<string, unknown>>();
+  return { ...actual, verifyVerifiableCredential: vi.fn() };
+});
+const verifySpy = vi.mocked((await import('@credda/js/headless')).verifyVerifiableCredential);
 
 function fakeClient(overrides: Record<string, unknown> = {}) {
   return {
@@ -61,7 +71,7 @@ describe('checkTrust', () => {
         jwksUri: '/.well-known/jwks.json',
       })),
     });
-    const result = await checkTrust({ client }, { token: 'crd_share_abc' });
+    const result = await checkTrust({ client, issuerDid: TEST_ISSUER }, { token: 'crd_share_abc' });
     expect(client.resolveToken).toHaveBeenCalledWith('crd_share_abc');
     expect(result.finalScore).toBe(82);
     expect(result.scoreBand).toBe('Excellent');
@@ -73,7 +83,7 @@ describe('getTrustExportTool', () => {
   it('passes through the client export bundle', async () => {
     const bundle = { format: 'credda-trust-export/1' };
     const client = fakeClient({ getTrustExport: vi.fn(async () => bundle) });
-    const result = await getTrustExportTool({ client }, { token: 'crd_share_abc' });
+    const result = await getTrustExportTool({ client, issuerDid: TEST_ISSUER }, { token: 'crd_share_abc' });
     expect(client.getTrustExport).toHaveBeenCalledWith('crd_share_abc');
     expect(result).toBe(bundle);
   });
@@ -83,7 +93,7 @@ describe('verifyTrustCredentialTool', () => {
   it('delegates to client.verifyCredential', async () => {
     const verified = { valid: true, issuer: 'credda.io', subject: 'crd_share_abc' };
     const client = fakeClient({ verifyCredential: vi.fn(async () => verified) });
-    const result = await verifyTrustCredentialTool({ client }, { credential: 'eyJ.jwt' });
+    const result = await verifyTrustCredentialTool({ client, issuerDid: TEST_ISSUER }, { credential: 'eyJ.jwt' });
     expect(client.verifyCredential).toHaveBeenCalledWith('eyJ.jwt');
     expect(result).toBe(verified);
   });
@@ -92,19 +102,40 @@ describe('verifyTrustCredentialTool', () => {
     const client = fakeClient({
       verifyCredential: vi.fn(async () => { throw new Error('credda: signature invalid'); }),
     });
-    await expect(verifyTrustCredentialTool({ client }, { credential: 'bad' })).rejects.toThrow(
+    await expect(verifyTrustCredentialTool({ client, issuerDid: TEST_ISSUER }, { credential: 'bad' })).rejects.toThrow(
       'credda: signature invalid',
     );
   });
 });
 
 describe('verifyVerifiableCredentialTool', () => {
-  it('delegates to client.verifyVerifiableCredential', async () => {
+  // It calls the SDK verifier DIRECTLY rather than the client wrapper, because
+  // the wrapper takes no options and the expected issuer is the whole point:
+  // did:web proves who signed a credential, never that the signer is Credda, so
+  // an agent handed a credential minted under anyone's domain would otherwise be
+  // told it is valid.
+  it('tells the verifier which issuer it expects, and passes the base for JWKS fallback', async () => {
     const verified = { valid: true, issuer: 'did:web:api.credda.io', subject: 'crd_share_abc' };
-    const client = fakeClient({ verifyVerifiableCredential: vi.fn(async () => verified) });
-    const result = await verifyVerifiableCredentialTool({ client }, { vcJwt: 'eyJ.vc.jwt' });
-    expect(client.verifyVerifiableCredential).toHaveBeenCalledWith('eyJ.vc.jwt');
+    verifySpy.mockResolvedValueOnce(verified as never);
+
+    const result = await verifyVerifiableCredentialTool(
+      { client: fakeClient(), apiBase: 'https://staging-api.credda.io', issuerDid: 'did:web:staging-api.credda.io' },
+      { vcJwt: 'eyJ.vc.jwt' },
+    );
+
+    expect(verifySpy).toHaveBeenCalledWith('eyJ.vc.jwt', {
+      apiBase: 'https://staging-api.credda.io',
+      issuer: 'did:web:staging-api.credda.io',
+    });
     expect(result).toBe(verified);
+  });
+
+  it('expects the issuer of the base the server was configured with', () => {
+    expect(issuerDidFor(undefined)).toBe('did:web:api.credda.io');
+    expect(issuerDidFor('https://staging-api.credda.io')).toBe('did:web:staging-api.credda.io');
+    expect(issuerDidFor('https://api.credda.io/')).toBe('did:web:api.credda.io');
+    // A base nobody can parse must not silently become "trust anyone".
+    expect(issuerDidFor('not-a-url')).toBe('did:web:api.credda.io');
   });
 });
 
@@ -112,7 +143,7 @@ describe('mintMyTrustToken', () => {
   it('mints a token using the configured self identity', async () => {
     const minted = { token: 'crd_share_new', verifyUrl: 'https://api.credda.io/v/crd_share_new', embedSnippet: '', widgetSrc: '' };
     const client = fakeClient({ mintShareToken: vi.fn(async () => minted) });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', selfUserId: 'user_1' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', selfUserId: 'user_1', issuerDid: TEST_ISSUER };
     const result = await mintMyTrustToken(ctx);
     expect(client.mintShareToken).toHaveBeenCalledWith('user_1', 'crd_live_xyz');
     expect(result).toBe(minted);
@@ -120,7 +151,7 @@ describe('mintMyTrustToken', () => {
 
   it('rejects with a clear config error when apiKey/selfUserId are missing', async () => {
     const client = fakeClient();
-    await expect(mintMyTrustToken({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(mintMyTrustToken({ client, issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_API_KEY/);
     expect(client.mintShareToken).not.toHaveBeenCalled();
   });
 });
@@ -133,7 +164,7 @@ describe('presentMyCredential', () => {
       mintShareToken: vi.fn(async () => minted),
       getTrustExport: vi.fn(async () => bundle),
     });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', selfUserId: 'user_1' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', selfUserId: 'user_1', issuerDid: TEST_ISSUER };
     const result = await presentMyCredential(ctx);
     expect(client.mintShareToken).toHaveBeenCalledWith('user_1', 'crd_live_xyz');
     expect(client.getTrustExport).toHaveBeenCalledWith('crd_share_new');
@@ -142,7 +173,7 @@ describe('presentMyCredential', () => {
 
   it('rejects with a clear config error when apiKey/selfUserId are missing', async () => {
     const client = fakeClient();
-    await expect(presentMyCredential({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(presentMyCredential({ client, issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_API_KEY/);
     expect(client.mintShareToken).not.toHaveBeenCalled();
     expect(client.getTrustExport).not.toHaveBeenCalled();
   });
@@ -162,7 +193,7 @@ describe('getUserScore', () => {
         computedAt: '2026-07-22T00:00:00.000Z',
       })),
     });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER };
     const result = await getUserScore(ctx, { userId: 'ext_1' });
     expect(client.getScore).toHaveBeenCalledWith('ext_1', 'crd_live_xyz');
     expect(result.finalScore).toBe(71);
@@ -173,7 +204,7 @@ describe('getUserScore', () => {
 
   it('rejects with a clear config error when the key is missing', async () => {
     const client = fakeClient();
-    await expect(getUserScore({ client }, { userId: 'ext_1' })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(getUserScore({ client, issuerDid: TEST_ISSUER }, { userId: 'ext_1' })).rejects.toThrow(/CREDDA_API_KEY/);
     expect(client.getScore).not.toHaveBeenCalled();
   });
 });
@@ -182,7 +213,7 @@ describe('explainUserScore', () => {
   it('delegates to client.getScoreExplain with the configured key', async () => {
     const explain = { summary: 'Reliable', factors: [], confidence: { level: 'high' } };
     const client = fakeClient({ getScoreExplain: vi.fn(async () => explain) });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER };
     const result = await explainUserScore(ctx, { userId: 'ext_1' });
     expect(client.getScoreExplain).toHaveBeenCalledWith('ext_1', 'crd_live_xyz');
     expect(result).toBe(explain);
@@ -190,7 +221,7 @@ describe('explainUserScore', () => {
 
   it('rejects with a clear config error when the key is missing', async () => {
     const client = fakeClient();
-    await expect(explainUserScore({ client }, { userId: 'ext_1' })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(explainUserScore({ client, issuerDid: TEST_ISSUER }, { userId: 'ext_1' })).rejects.toThrow(/CREDDA_API_KEY/);
     expect(client.getScoreExplain).not.toHaveBeenCalled();
   });
 });
@@ -202,7 +233,7 @@ describe('createScoreMonitor', () => {
       isActive: true, lastTriggeredAt: null, createdAt: 'now', updatedAt: 'now',
     };
     const client = fakeClient({ createMonitor: vi.fn(async () => ({ monitor })) });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER };
     const result = await createScoreMonitor(ctx, { userId: 'ext_1', belowScore: 40, onBandChange: true });
     expect(client.createMonitor).toHaveBeenCalledWith(
       { userId: 'ext_1', belowScore: 40, aboveScore: undefined, onBandChange: true },
@@ -213,7 +244,7 @@ describe('createScoreMonitor', () => {
 
   it('rejects with a clear config error when the key is missing', async () => {
     const client = fakeClient();
-    await expect(createScoreMonitor({ client }, { userId: 'ext_1', belowScore: 40 })).rejects.toThrow(
+    await expect(createScoreMonitor({ client, issuerDid: TEST_ISSUER }, { userId: 'ext_1', belowScore: 40 })).rejects.toThrow(
       /CREDDA_API_KEY/,
     );
     expect(client.createMonitor).not.toHaveBeenCalled();
@@ -224,7 +255,7 @@ describe('listScoreMonitors', () => {
   it('lists monitors, passing pagination through', async () => {
     const page = { data: [{ id: 'mon_1' }], nextCursor: null };
     const client = fakeClient({ listMonitors: vi.fn(async () => page) });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER };
     const result = await listScoreMonitors(ctx, { limit: 10, cursor: 'c1' });
     expect(client.listMonitors).toHaveBeenCalledWith('crd_live_xyz', { limit: 10, cursor: 'c1' });
     expect(result).toBe(page);
@@ -232,7 +263,7 @@ describe('listScoreMonitors', () => {
 
   it('rejects with a clear config error when the key is missing', async () => {
     const client = fakeClient();
-    await expect(listScoreMonitors({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(listScoreMonitors({ client, issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_API_KEY/);
     expect(client.listMonitors).not.toHaveBeenCalled();
   });
 });
@@ -240,7 +271,7 @@ describe('listScoreMonitors', () => {
 describe('deleteScoreMonitor', () => {
   it('deletes the monitor and confirms', async () => {
     const client = fakeClient({ deleteMonitor: vi.fn(async () => undefined) });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER };
     const result = await deleteScoreMonitor(ctx, { id: 'mon_1' });
     expect(client.deleteMonitor).toHaveBeenCalledWith('mon_1', 'crd_live_xyz');
     expect(result).toEqual({ deleted: true, id: 'mon_1' });
@@ -248,7 +279,7 @@ describe('deleteScoreMonitor', () => {
 
   it('rejects with a clear config error when the key is missing', async () => {
     const client = fakeClient();
-    await expect(deleteScoreMonitor({ client }, { id: 'mon_1' })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(deleteScoreMonitor({ client, issuerDid: TEST_ISSUER }, { id: 'mon_1' })).rejects.toThrow(/CREDDA_API_KEY/);
     expect(client.deleteMonitor).not.toHaveBeenCalled();
   });
 });
@@ -257,7 +288,7 @@ describe('getMyUsage', () => {
   it('reads usage for the configured key with an optional window', async () => {
     const usage = { platform: { id: 'p1', name: 'Acme', tier: 'GROWTH' }, days: [] };
     const client = fakeClient({ getUsage: vi.fn(async () => usage) });
-    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz' };
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER };
     const result = await getMyUsage(ctx, { days: 30 });
     expect(client.getUsage).toHaveBeenCalledWith('crd_live_xyz', 30);
     expect(result).toBe(usage);
@@ -265,7 +296,7 @@ describe('getMyUsage', () => {
 
   it('rejects with a clear config error when the key is missing', async () => {
     const client = fakeClient();
-    await expect(getMyUsage({ client })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(getMyUsage({ client, issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_API_KEY/);
     expect(client.getUsage).not.toHaveBeenCalled();
   });
 });
@@ -274,7 +305,7 @@ describe('listWebhookEventTypes', () => {
   it('is public: delegates to client.getWebhookEvents without any key', async () => {
     const catalog = { events: [{ type: 'monitor.triggered' }], envelope: {} };
     const client = fakeClient({ getWebhookEvents: vi.fn(async () => catalog) });
-    const result = await listWebhookEventTypes({ client });
+    const result = await listWebhookEventTypes({ client, issuerDid: TEST_ISSUER });
     expect(client.getWebhookEvents).toHaveBeenCalled();
     expect(result).toBe(catalog);
   });
@@ -284,7 +315,7 @@ describe('getDidDocumentResource', () => {
   it('delegates to client.getDidDocument', async () => {
     const doc = { id: 'did:web:api.credda.io', service: [] };
     const client = fakeClient({ getDidDocument: vi.fn(async () => doc) });
-    const result = await getDidDocumentResource({ client });
+    const result = await getDidDocumentResource({ client, issuerDid: TEST_ISSUER });
     expect(client.getDidDocument).toHaveBeenCalled();
     expect(result).toBe(doc);
   });
@@ -294,7 +325,7 @@ describe('getTrustRegistryResource', () => {
   it('delegates to client.getTrustRegistry', async () => {
     const registry = { version: '1', issuers: [{ did: 'did:web:api.credda.io' }] };
     const client = fakeClient({ getTrustRegistry: vi.fn(async () => registry) });
-    const result = await getTrustRegistryResource({ client });
+    const result = await getTrustRegistryResource({ client, issuerDid: TEST_ISSUER });
     expect(client.getTrustRegistry).toHaveBeenCalled();
     expect(result).toBe(registry);
   });
@@ -329,7 +360,7 @@ const RECEIPTS = {
 describe('checkDeliveryReceipts', () => {
   it('is public: needs no API key and returns the evidence, not a verdict', async () => {
     const client = fakeClient({ getDeliveryReceipts: vi.fn(async () => RECEIPTS) });
-    const result = await checkDeliveryReceipts({ client }, { token: 'crd_share_abc' });
+    const result = await checkDeliveryReceipts({ client, issuerDid: TEST_ISSUER }, { token: 'crd_share_abc' });
     expect(client.getDeliveryReceipts).toHaveBeenCalledWith('crd_share_abc');
     expect(result.deliveryRecord.confirmedDeliveries).toBe(9);
     expect(result.deliveryRecord.selfAttestedDeliveries).toBe(3);
@@ -347,7 +378,7 @@ describe('presentMyDeliveryReceipts', () => {
       mintShareToken: vi.fn(async () => ({ token: 'crd_share_abc', verifyUrl: 'https://api.credda.io/api/v1/verify/crd_share_abc' })),
       getDeliveryReceipts: vi.fn(async () => RECEIPTS),
     });
-    const result = await presentMyDeliveryReceipts({ client, apiKey: 'crd_live_k', selfUserId: 'agent-1' });
+    const result = await presentMyDeliveryReceipts({ client, apiKey: 'crd_live_k', selfUserId: 'agent-1', issuerDid: TEST_ISSUER });
     expect(client.mintShareToken).toHaveBeenCalledWith('agent-1', 'crd_live_k');
     expect(client.getDeliveryReceipts).toHaveBeenCalledWith('crd_share_abc');
     expect(result.token).toBe('crd_share_abc');
@@ -356,7 +387,7 @@ describe('presentMyDeliveryReceipts', () => {
 
   it('refuses without CREDDA_API_KEY / CREDDA_USER_ID: it never acts for a counterparty', async () => {
     const client = fakeClient();
-    await expect(presentMyDeliveryReceipts({ client })).rejects.toThrow(/CREDDA_API_KEY/);
-    await expect(presentMyDeliveryReceipts({ client, apiKey: 'k' })).rejects.toThrow(/CREDDA_USER_ID/);
+    await expect(presentMyDeliveryReceipts({ client, issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_API_KEY/);
+    await expect(presentMyDeliveryReceipts({ client, apiKey: 'k', issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_USER_ID/);
   });
 });
