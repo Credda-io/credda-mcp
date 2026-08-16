@@ -18,6 +18,8 @@ import {
   listWebhookEventTypes,
   getDidDocumentResource,
   getTrustRegistryResource,
+  requestConfirmation,
+  listConfirmationRequests,
   type ToolContext,
 } from './tools.js';
 
@@ -47,6 +49,8 @@ function fakeClient(overrides: Record<string, unknown> = {}) {
     getUsage: vi.fn(),
     getWebhookEvents: vi.fn(),
     getDeliveryReceipts: vi.fn(),
+    createConfirmationRequest: vi.fn(),
+    listConfirmations: vi.fn(),
     ...overrides,
   } as unknown as ToolContext['client'];
 }
@@ -389,5 +393,159 @@ describe('presentMyDeliveryReceipts', () => {
     const client = fakeClient();
     await expect(presentMyDeliveryReceipts({ client, issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_API_KEY/);
     await expect(presentMyDeliveryReceipts({ client, apiKey: 'k', issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_USER_ID/);
+  });
+});
+
+// ── Requesting a confirmation (the only tool that ASKS for anything) ──────────
+//
+// The point of these tests is the asymmetry. `requestConfirmation` may create a
+// PENDING ask; nothing in this module may turn that ask into a confirmed
+// outcome. Every assertion below exists to keep that true under later edits.
+
+const CREATED = {
+  confirmation: {
+    id: 'cfr_123',
+    subjectExternalId: 'ext_worker_1',
+    eventType: 'CONTRACT_FULFILLED',
+    stakeLevel: 'MEDIUM',
+    transactionValue: null,
+    dueDate: null,
+    completedAt: '2026-08-01T00:00:00.000Z',
+    counterpartyRef: 'client_44',
+    counterpartyName: 'Bramley Care Home',
+    description: 'Night shift, 1 August',
+    claimRef: null,
+    returnUrl: null,
+    status: 'PENDING' as const,
+    expiresAt: '2026-08-31T00:00:00.000Z',
+    resultingEventId: null,
+    decidedAt: null,
+    createdAt: '2026-08-11T00:00:00.000Z',
+  },
+  confirmationToken: 'one_time_raw_token',
+  confirmUrl: 'https://api.credda.io/confirm/cfr_123?token=one_time_raw_token',
+  previewUrl: 'https://api.credda.io/api/v1/confirmations/cfr_123/preview?token=one_time_raw_token',
+  respondUrl: 'https://api.credda.io/api/v1/confirmations/cfr_123/respond',
+};
+
+describe('requestConfirmation', () => {
+  it('creates a PENDING ask with the configured key and hands back the delivery link', async () => {
+    const client = fakeClient({ createConfirmationRequest: vi.fn(async () => CREATED) });
+    const ctx: ToolContext = { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER };
+    const result = await requestConfirmation(ctx, {
+      userId: 'ext_worker_1',
+      eventType: 'CONTRACT_FULFILLED',
+      counterpartyRef: 'client_44',
+      counterpartyName: 'Bramley Care Home',
+      description: 'Night shift, 1 August',
+      completedAt: '2026-08-01T00:00:00.000Z',
+    });
+
+    const [body, key, opts] = (client.createConfirmationRequest as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(key).toBe('crd_live_xyz');
+    expect(body.userId).toBe('ext_worker_1');
+    expect(body.eventType).toBe('CONTRACT_FULFILLED');
+    // Passed through untouched so the server's own CONFIRMATION_SELF check is
+    // the one that decides whether the subject is naming itself as its witness.
+    expect(body.counterpartyRef).toBe('client_44');
+    expect(opts).toEqual({});
+
+    expect(result.id).toBe('cfr_123');
+    expect(result.status).toBe('PENDING');
+    expect(result.confirmUrl).toBe(CREATED.confirmUrl);
+    // Nothing was recorded: the ledger event id is null and stays null until
+    // the counterparty acts.
+    expect(result.resultingEventId).toBeNull();
+  });
+
+  it('names the configured subject when userId is omitted', async () => {
+    const client = fakeClient({ createConfirmationRequest: vi.fn(async () => CREATED) });
+    await requestConfirmation(
+      { client, apiKey: 'crd_live_xyz', selfUserId: 'ext_worker_1', issuerDid: TEST_ISSUER },
+      { eventType: 'CONTRACT_FULFILLED', counterpartyRef: 'client_44' },
+    );
+    const [body] = (client.createConfirmationRequest as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(body.userId).toBe('ext_worker_1');
+  });
+
+  it('forwards an idempotency key so a retry cannot mint a second token', async () => {
+    const client = fakeClient({ createConfirmationRequest: vi.fn(async () => CREATED) });
+    await requestConfirmation(
+      { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER },
+      { userId: 'ext_worker_1', eventType: 'CONTRACT_FULFILLED', counterpartyRef: 'client_44', idempotencyKey: 'shift_998' },
+    );
+    const [, , opts] = (client.createConfirmationRequest as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(opts).toEqual({ idempotencyKey: 'shift_998' });
+  });
+
+  it('refuses without CREDDA_API_KEY, and calls nothing', async () => {
+    const client = fakeClient({ createConfirmationRequest: vi.fn() });
+    await expect(
+      requestConfirmation({ client, issuerDid: TEST_ISSUER }, { userId: 'ext_worker_1', eventType: 'CONTRACT_FULFILLED', counterpartyRef: 'client_44' }),
+    ).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.createConfirmationRequest).not.toHaveBeenCalled();
+  });
+
+  it('refuses when no subject is named and none is configured', async () => {
+    const client = fakeClient({ createConfirmationRequest: vi.fn() });
+    await expect(
+      requestConfirmation({ client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER }, { eventType: 'CONTRACT_FULFILLED', counterpartyRef: 'client_44' }),
+    ).rejects.toThrow(/userId/);
+    expect(client.createConfirmationRequest).not.toHaveBeenCalled();
+  });
+
+  it('states plainly that nothing is on the ledger and that the caller owns delivery', async () => {
+    const client = fakeClient({ createConfirmationRequest: vi.fn(async () => CREATED) });
+    const result = await requestConfirmation(
+      { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER },
+      { userId: 'ext_worker_1', eventType: 'CONTRACT_FULFILLED', counterpartyRef: 'client_44' },
+    );
+    // An agent reads these strings; they must not let it believe it has just
+    // verified something, or that Credda will do the delivering.
+    expect(result.ledger).toMatch(/nothing/i);
+    expect(result.delivery).toMatch(/your own channel/i);
+    expect(result.delivery).toMatch(/no email/i);
+  });
+
+  it('hands back no recipe for answering on the counterparty\'s behalf', async () => {
+    const client = fakeClient({ createConfirmationRequest: vi.fn(async () => CREATED) });
+    const result = await requestConfirmation(
+      { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER },
+      { userId: 'ext_worker_1', eventType: 'CONTRACT_FULFILLED', counterpartyRef: 'client_44' },
+    );
+    // The hosted page is the deliverable. The bare token and the POST target
+    // the counterparty's browser uses are deliberately not surfaced to a model.
+    expect(Object.keys(result)).not.toContain('respondUrl');
+    expect(Object.keys(result)).not.toContain('confirmationToken');
+    expect(JSON.stringify(result)).not.toContain('/respond');
+  });
+});
+
+describe('listConfirmationRequests', () => {
+  it('lists under the configured key and passes the filter through', async () => {
+    const page = { data: [CREATED.confirmation], nextCursor: null };
+    const client = fakeClient({ listConfirmations: vi.fn(async () => page) });
+    const result = await listConfirmationRequests(
+      { client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER },
+      { status: 'PENDING', limit: 25, cursor: 'c1' },
+    );
+    expect(client.listConfirmations).toHaveBeenCalledWith('crd_live_xyz', {
+      status: 'PENDING',
+      limit: 25,
+      cursor: 'c1',
+    });
+    expect(result).toBe(page);
+  });
+
+  it('sends no filter at all when none is given', async () => {
+    const client = fakeClient({ listConfirmations: vi.fn(async () => ({ data: [], nextCursor: null })) });
+    await listConfirmationRequests({ client, apiKey: 'crd_live_xyz', issuerDid: TEST_ISSUER });
+    expect(client.listConfirmations).toHaveBeenCalledWith('crd_live_xyz', {});
+  });
+
+  it('refuses without CREDDA_API_KEY', async () => {
+    const client = fakeClient({ listConfirmations: vi.fn() });
+    await expect(listConfirmationRequests({ client, issuerDid: TEST_ISSUER })).rejects.toThrow(/CREDDA_API_KEY/);
+    expect(client.listConfirmations).not.toHaveBeenCalled();
   });
 });

@@ -3,13 +3,34 @@
  * plain mocked `CreddaClient`. `src/server.ts` wires these into MCP tool
  * registrations (schemas, titles, descriptions).
  *
- * Every tool is READ-ONLY against Credda's deterministic score. None of them
- * write an Event, adjust a score, or make a trust decision. They let an
- * agent look up and offline-verify EXISTING, already-computed trust facts.
- * The "mint" tool issues a new share token (a capability, not a score write).
+ * No tool here writes an Event, adjusts a score, or makes a trust decision.
+ * Most let an agent look up and offline-verify EXISTING, already-computed trust
+ * facts. The "mint" tool issues a new share token (a capability, not a score
+ * write). `requestConfirmation` is the one tool that creates something: a
+ * PENDING ask, which is still not a ledger write.
+ *
+ * WHY THE ASK IS SAFE, and why it is safer than the `POST /events` path this
+ * server deliberately does not expose. Creating a confirmation request stores a
+ * proposal and hands back a one-time link. The verified event is written by
+ * `POST /api/v1/confirmations/:id/respond`, which takes NO API key because the
+ * named counterparty holds a token instead of an account. So an agent holding
+ * its platform's key can ASK, and cannot ANSWER. `POST /events`, by contrast,
+ * lets a caller assert `isVerified: true` about itself; that is exactly why it
+ * is absent here and why this is not. See `src/writeSurface.test.ts`, which
+ * fails if a later edit adds a way to answer.
+ *
+ * The platform also keeps delivery. Credda sends no email for this flow and
+ * never learns the counterparty's address; the caller sends the link over its
+ * own channel.
  */
 
-import { verifyVerifiableCredential, type CreddaClient } from '@credda/js/headless';
+import {
+  verifyVerifiableCredential,
+  type CreddaClient,
+  type ConfirmationStatus,
+  type ConfirmerType,
+  type IngestEventType,
+} from '@credda/js/headless';
 
 export interface ToolContext {
   client: CreddaClient;
@@ -240,4 +261,146 @@ export async function getDidDocumentResource(ctx: ToolContext) {
 
 export async function getTrustRegistryResource(ctx: ToolContext) {
   return ctx.client.getTrustRegistry();
+}
+
+// ── Requesting a confirmation (CREDDA_API_KEY) ────────────────────────────────
+//
+// Everything above this line consumes trust that already exists. This is the
+// one place an agent can SUPPLY it: propose an outcome and ask the named
+// counterparty to confirm it. Confirmations are free at every tier by explicit
+// decision (the API's confirmation routes carry no scope gate and every plan
+// lists `confirmations` as a read feature), so a read-only Starter key can do
+// this. Nothing here is metered beyond the ordinary request quota, and no plan
+// changes what a confirmation is worth.
+
+/**
+ * The event types a confirmation request may propose. The same set
+ * `POST /api/v1/events` accepts, positive and negative alike, because a
+ * counterparty can confirm a job well done or a contract breached with equal
+ * validity.
+ */
+export const CONFIRMABLE_EVENT_TYPES = [
+  'TRANSACTION_COMPLETED',
+  'CONTRACT_FULFILLED',
+  'REVIEW_VERIFIED',
+  'DISPUTE_RESOLVED_FOR_USER',
+  'TRANSACTION_CANCELLED',
+  'CONTRACT_CANCELLED',
+  'CONTRACT_BREACHED',
+  'TRANSACTION_DISPUTED',
+] as const satisfies readonly IngestEventType[];
+
+/**
+ * Compile-time drift guard in the other direction: `satisfies` above catches a
+ * value this list should not contain, and this catches an `IngestEventType` the
+ * list is missing. A new event type in the pinned SDK therefore fails `tsc`
+ * here rather than silently becoming unaskable through the MCP server.
+ */
+type _EveryIngestTypeIsConfirmable =
+  Exclude<IngestEventType, (typeof CONFIRMABLE_EVENT_TYPES)[number]> extends never ? true : never;
+const _everyIngestTypeIsConfirmable: _EveryIngestTypeIsConfirmable = true;
+void _everyIngestTypeIsConfirmable;
+
+export interface RequestConfirmationArgs {
+  /** Subject of the proposed outcome. Defaults to the configured CREDDA_USER_ID. */
+  userId?: string;
+  eventType: (typeof CONFIRMABLE_EVENT_TYPES)[number];
+  /** Your own key for the party being ASKED. Must not name the subject. */
+  counterpartyRef: string;
+  counterpartyName?: string;
+  description?: string;
+  stakeLevel?: 'HIGH' | 'MEDIUM' | 'LOW';
+  transactionValue?: number;
+  dueDate?: string;
+  completedAt?: string;
+  confirmerType?: ConfirmerType;
+  expiresInDays?: number;
+  idempotencyKey?: string;
+}
+
+/**
+ * Propose an outcome and get back a one-time link to send to the counterparty.
+ * `POST /api/v1/confirmations`.
+ *
+ * Writes NO event and moves NO score. The returned request is PENDING and its
+ * `resultingEventId` is null; a verified event exists only once the named
+ * counterparty opens the link and affirmatively confirms. The caller cannot do
+ * that on their behalf and neither can this server.
+ *
+ * Of the four delivery handles the API returns, only the hosted page comes back
+ * here. The bare one-time token and the endpoint a decision is posted to are
+ * dropped: the operator needs a link to forward, not a recipe for answering.
+ */
+export async function requestConfirmation(ctx: ToolContext, args: RequestConfirmationArgs) {
+  if (!ctx.apiKey) keyNotConfigured();
+  const userId = args.userId ?? ctx.selfUserId;
+  if (!userId) {
+    throw new Error(
+      'request_confirmation needs `userId`, your own external id for the SUBJECT of the ' +
+        'proposed outcome. Or set CREDDA_USER_ID in the MCP server config to name that subject.',
+    );
+  }
+
+  const created = await ctx.client.createConfirmationRequest(
+    {
+      userId,
+      eventType: args.eventType,
+      // Passed through untouched. The server rejects a request whose
+      // counterparty names the subject (400 CONFIRMATION_SELF); that check must
+      // stay the server's, so nothing here normalizes or rewrites it.
+      counterpartyRef: args.counterpartyRef,
+      ...(args.counterpartyName ? { counterpartyName: args.counterpartyName } : {}),
+      ...(args.description ? { description: args.description } : {}),
+      ...(args.stakeLevel ? { stakeLevel: args.stakeLevel } : {}),
+      ...(args.transactionValue !== undefined ? { transactionValue: args.transactionValue } : {}),
+      ...(args.dueDate ? { dueDate: args.dueDate } : {}),
+      ...(args.completedAt ? { completedAt: args.completedAt } : {}),
+      ...(args.confirmerType ? { confirmerType: args.confirmerType } : {}),
+      ...(args.expiresInDays !== undefined ? { expiresInDays: args.expiresInDays } : {}),
+    },
+    ctx.apiKey,
+    args.idempotencyKey ? { idempotencyKey: args.idempotencyKey } : {},
+  );
+
+  const c = created.confirmation;
+  return {
+    id: c.id,
+    status: c.status,
+    subjectExternalId: c.subjectExternalId,
+    eventType: c.eventType,
+    counterpartyRef: c.counterpartyRef,
+    counterpartyName: c.counterpartyName,
+    description: c.description,
+    expiresAt: c.expiresAt,
+    createdAt: c.createdAt,
+    /** Null until the counterparty confirms. It is the only proof anything was recorded. */
+    resultingEventId: c.resultingEventId,
+    /** Send this to the counterparty. It is single-use and expires. */
+    confirmUrl: created.confirmUrl,
+    delivery:
+      'You deliver this link over your own channel. Credda sends no email for this flow and ' +
+      'never learns the counterparty\'s address.',
+    ledger:
+      'Nothing has been recorded. This request wrote no event and moved no score. The verified ' +
+      'event exists only if the named counterparty opens the link and confirms; you cannot ' +
+      'confirm it for them, and neither can this server.',
+  };
+}
+
+/**
+ * List the confirmation requests your key has created, newest first,
+ * cursor-paginated. `GET /api/v1/confirmations`. Filter with
+ * `status: 'PENDING'` for the outstanding ones, the asks still waiting on a
+ * counterparty. Read-only.
+ */
+export async function listConfirmationRequests(
+  ctx: ToolContext,
+  args: { status?: ConfirmationStatus; limit?: number; cursor?: string } = {},
+) {
+  if (!ctx.apiKey) keyNotConfigured();
+  return ctx.client.listConfirmations(ctx.apiKey, {
+    ...(args.status ? { status: args.status } : {}),
+    ...(args.limit !== undefined ? { limit: args.limit } : {}),
+    ...(args.cursor ? { cursor: args.cursor } : {}),
+  });
 }

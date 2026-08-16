@@ -26,6 +26,9 @@ import {
   listWebhookEventTypes,
   getDidDocumentResource,
   getTrustRegistryResource,
+  requestConfirmation,
+  listConfirmationRequests,
+  CONFIRMABLE_EVENT_TYPES,
   type ToolContext,
   issuerDidFor,
 } from './tools.js';
@@ -377,6 +380,83 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
     async () => {
       try {
         return asToolResult(await listWebhookEventTypes(ctx));
+      } catch (err) {
+        return asToolError(err);
+      }
+    },
+  );
+
+  // ── Supplying trust, not just consuming it ─────────────────────────────────
+  // The only tool that creates anything. It creates an ASK; the counterparty
+  // creates the outcome. See the header of tools.ts for why that ordering is
+  // the whole safety argument, and writeSurface.test.ts for the guard.
+
+  server.registerTool(
+    'request_confirmation',
+    {
+      title: 'Ask a counterparty to confirm an outcome',
+      description:
+        'Propose an outcome that happened (a shift worked, a contract fulfilled, a job completed, ' +
+        'a dispute resolved) and ask the OTHER party to confirm it. Returns a one-time `confirmUrl` ' +
+        'you deliver to them over your own channel: Credda sends no email for this and never learns ' +
+        'their address. Requires CREDDA_API_KEY; free on every plan, including read-only keys. ' +
+        'THIS RECORDS NOTHING. The request comes back PENDING with a null `resultingEventId`, and ' +
+        'the verified event is written only when that named counterparty opens the link and ' +
+        'confirms for themselves. You cannot confirm it for them and this server offers no tool ' +
+        'that could, which is why an ask is safer than reporting an event directly. Naming the ' +
+        'subject as its own counterparty is refused (CONFIRMATION_SELF): a party is never its own ' +
+        'independent witness.',
+      inputSchema: {
+        userId: z.string().min(1).optional()
+          .describe('Your external id for the SUBJECT of the outcome. Defaults to CREDDA_USER_ID.'),
+        eventType: z.enum(CONFIRMABLE_EVENT_TYPES)
+          .describe('What is being proposed. Negative outcomes are as confirmable as positive ones.'),
+        counterpartyRef: z.string().min(1).max(255)
+          .describe('Your own key for the party being ASKED to confirm. Must not name the subject.'),
+        counterpartyName: z.string().min(1).max(200).optional()
+          .describe('Human name shown to them on the confirmation page'),
+        description: z.string().min(1).max(500).optional()
+          .describe('Plain-language description of what they are being asked to confirm'),
+        stakeLevel: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional().describe('Defaults to MEDIUM'),
+        transactionValue: z.number().nonnegative().optional().describe('Value of the work, if relevant'),
+        dueDate: z.string().optional().describe('ISO 8601 timestamp the work was due'),
+        completedAt: z.string().optional().describe('ISO 8601 timestamp the work was completed'),
+        confirmerType: z.enum(['INDIVIDUAL', 'EMPLOYER', 'PLATFORM']).optional()
+          .describe("The confirming party's RELATIONSHIP to the subject, never their identity"),
+        expiresInDays: z.number().int().min(1).max(90).optional().describe('1 to 90 days; clamped server-side'),
+        idempotencyKey: z.string().min(1).optional()
+          .describe('Send one so a retried ask cannot mint a second link for the same proposal'),
+      },
+    },
+    async (args) => {
+      try {
+        return asToolResult(await requestConfirmation(ctx, args));
+      } catch (err) {
+        return asToolError(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'list_confirmation_requests',
+    {
+      title: 'List the confirmations you have asked for',
+      description:
+        'List the confirmation requests your key created, newest first, cursor-paginated. Pass ' +
+        "`status: 'PENDING'` for the outstanding ones, asks still waiting on a counterparty, or " +
+        'CONFIRMED / DECLINED / EXPIRED / CANCELLED for the settled ones. Requires CREDDA_API_KEY. ' +
+        'Read-only: a request carries `resultingEventId`, which is null in every state except ' +
+        'CONFIRMED, so this is also how you see which asks actually produced ledger evidence.',
+      inputSchema: {
+        status: z.enum(['PENDING', 'CONFIRMED', 'DECLINED', 'EXPIRED', 'CANCELLED']).optional()
+          .describe('Filter by lifecycle state; omit for all'),
+        limit: z.number().int().min(1).max(100).optional().describe('Page size'),
+        cursor: z.string().optional().describe('Cursor from a previous page (`nextCursor`)'),
+      },
+    },
+    async ({ status, limit, cursor }) => {
+      try {
+        return asToolResult(await listConfirmationRequests(ctx, { status, limit, cursor }));
       } catch (err) {
         return asToolError(err);
       }
