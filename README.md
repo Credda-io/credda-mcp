@@ -51,7 +51,7 @@ That is enough for every public tool. Add credentials only for the platform tool
 | Variable | Needed for |
 |----------|------------|
 | `CREDDA_API_KEY` | The platform tools: score reads, monitors, usage. |
-| `CREDDA_USER_ID` | Additionally required by `mint_my_trust_token` / `present_my_credential` / `present_my_delivery_receipts`. |
+| `CREDDA_USER_ID` | Additionally required by `mint_my_trust_token` / `present_my_credential` / `present_my_delivery_receipts`; the default subject for `request_confirmation`. |
 | `CREDDA_API_BASE` | Optional override of `https://api.credda.io` (e.g. a staging deployment). |
 
 ## Tools
@@ -76,6 +76,8 @@ With `CREDDA_API_KEY`:
 | `create_score_monitor` / `list_score_monitors` / `delete_score_monitor` | Edge-triggered monitors that push a `monitor.triggered` webhook instead of you polling. |
 | `get_my_usage` | Your own key's usage and quota. |
 | `mint_my_trust_token` / `present_my_credential` / `present_my_delivery_receipts` | Your side of a handshake: mint a share token for your own identity and hand over the credential. Also needs `CREDDA_USER_ID`. |
+| `request_confirmation` | Propose an outcome and get a one-time link the named counterparty uses to confirm it. Creates a PENDING ask only: nothing reaches the ledger until they confirm, and no tool here can confirm for them. |
+| `list_confirmation_requests` | The asks your key has created, with `resultingEventId` showing which ones actually produced ledger evidence. |
 
 ## Resources
 
