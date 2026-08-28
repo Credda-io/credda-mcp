@@ -91,9 +91,19 @@ your own credentials.
 ```
 
 `@credda/mcp-server` is on npm, so `npx` fetches it with no checkout and no
-build. It is also listed in the
-[MCP Registry](https://registry.modelcontextprotocol.io) as
-`io.github.Credda-io/credda`.
+build.
+
+> **What `npx -y @credda/mcp-server` gets you today — checked 2026-08-28.** Not
+> this server. The latest version on npm is **0.2.0**, the retired trust-layer
+> server described in the warning at the top of this file; `1.0.0`, which this
+> README documents, is not published yet. The
+> [MCP Registry](https://registry.modelcontextprotocol.io) is in the same state:
+> the only Credda entry there is `io.github.Credda-io/credda-trust` at `0.1.3`,
+> still describing share tokens and credentials. The `mcpName` in this
+> repository's `package.json` is `io.github.Credda-io/credda`, which is the name
+> the registry entry becomes when 1.0.0 is published — it is not resolvable
+> before then. Until then, run this server from a checkout (see
+> [Development](#development)) rather than from `npx`.
 
 | Variable | Needed for |
 |----------|------------|
@@ -138,7 +148,8 @@ Two fields carry most of the meaning and are easy to skim past:
 ## Which endpoints this wraps
 
 Every route below is a `GET` in the Credda API (`apps/api/src/routes/`), behind
-the single bearer gate mounted on `/api/*` (`apps/api/src/auth.ts`).
+the single bearer gate mounted on `/api/*` (`apps/api/src/auth.ts`). They are
+documented at [api.credda.io/reference](https://api.credda.io/reference).
 
 | Route | Defined in |
 |-------|-----------|
