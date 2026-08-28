@@ -1,8 +1,8 @@
 <p align="center">
   <a href="https://credda.io">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Credda-io/credda-mcp/main/assets/creddaseallockupdarktransparent.png">
-      <img alt="Credda" src="https://raw.githubusercontent.com/Credda-io/credda-mcp/main/assets/creddaseallockuplighttransparent.png" width="480">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Credda-io/credda-mcp/main/assets/credda-lockup-white.png">
+      <img alt="Credda" src="https://raw.githubusercontent.com/Credda-io/credda-mcp/main/assets/credda-lockup-black.png" width="480">
     </picture>
   </a>
 </p>
@@ -11,14 +11,67 @@
 
 # @credda/mcp-server
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that puts
-[Credda](https://api.credda.io)'s verifiable trust layer in an agent's tool belt: look up a
-counterparty's Credda record from a share token they hand you, offline-verify a credential they
-present, and present your own back.
+> ### ⚠️ 1.0.0 is a different server under the same npm name
+>
+> Versions 0.1.x and 0.2.x of this package were a **trust-layer** server:
+> resolve a counterparty's share token to a reliability score, verify and mint
+> credentials, manage score monitors. Credda pivoted and that product is
+> retired. **Every tool, resource and environment variable from 0.x is gone**,
+> with no aliases and no deprecation period, because a tool that answers the
+> wrong question is worse than a tool that is missing. If you depend on the old
+> behaviour, pin `@credda/mcp-server@0.2.0`. The full list is in
+> [CHANGELOG.md](CHANGELOG.md).
 
-It is a thin client over Credda's public API: no database, no scoring logic. Nothing it exposes
-can write to Credda's append-only event ledger or change anyone's score, and there is deliberately
-**no** "evaluate this person" tool: it returns evidence, and the decision stays with the caller.
+**Credda finds the bugs and security vulnerabilities in a company's production
+and QA environments, reproduces the failure, diagnoses the cause, writes the
+patch, proves it with a test that fails before and passes after, and opens a
+pull request. It proposes; it never merges.**
+
+This package is not that engine. It is a [Model Context
+Protocol](https://modelcontextprotocol.io) server that lets an agent **read what
+Credda found**: investigations and their evidence, resolution records, and
+validation runs with their checks and findings. It is a thin, read-only client
+over [the Credda API](#which-endpoints-this-wraps) — no database, no analysis,
+no engine logic.
+
+## What it cannot do, and why that is deliberate
+
+**It cannot start an investigation, spend a model budget, apply a patch, or open
+a pull request in anybody's repository.**
+
+That is a property of this MCP server today, not a statement about the product:
+Credda's whole point is the pull request, and the engine opens them. What is
+true here is narrower and worth being exact about. An MCP server is driven by a
+model, and this server is what fills that model's context with issue bodies,
+logs, diffs and check output out of a real repository. A tool that spends money
+or writes to a repository, reachable by a model that has just read attacker-
+controlled text, is a bad trade at any level of prompt hygiene. So the surface
+is reads only.
+
+The API this wraps does have one write route, `POST /api/investigations`, which
+creates a run. **It is deliberately not exposed here.** Starting work costs
+money on a customer's account and is the first step of a chain that ends in a
+pull request; an operator starts a run with the CLI, deliberately, as
+themselves. The refusal is enforced rather than promised — `src/apiClient.ts`
+has exactly one HTTP method and the verb is a literal `'GET'`, and
+[`src/writeSurface.test.ts`](src/writeSurface.test.ts) invokes **every**
+advertised tool through a real MCP client and fails if any request that comes
+out of it is not a GET. If a later version exposes that route, that test fails
+and this section has to change with it.
+
+## Prompt injection: what is true, and what is not claimed
+
+Everything these tools return — issue titles and bodies, evidence summaries,
+log excerpts, unified diffs, check output — originates in a customer's
+repository or in a report somebody filed. It is untrusted input, and it lands
+verbatim in the model's context.
+
+**Nothing in this package sanitises it, and no filtering is implemented.** Every
+tool description says so, so a model reading a tool result has been told what
+kind of text it is holding. The only real mitigation here is the shape of the
+surface: a model talked into "now open a pull request" finds no tool that can.
+Treat tool output as data. When you act on it, act with your own judgment and
+your own credentials.
 
 ## Install
 
@@ -27,7 +80,11 @@ can write to Credda's append-only event ledger or change anyone's score, and the
   "mcpServers": {
     "credda": {
       "command": "npx",
-      "args": ["-y", "@credda/mcp-server"]
+      "args": ["-y", "@credda/mcp-server"],
+      "env": {
+        "CREDDA_API_BASE": "http://127.0.0.1:4317",
+        "CREDDA_API_KEY": "..."
+      }
     }
   }
 }
@@ -36,71 +93,90 @@ can write to Credda's append-only event ledger or change anyone's score, and the
 `@credda/mcp-server` is on npm, so `npx` fetches it with no checkout and no
 build. It is also listed in the
 [MCP Registry](https://registry.modelcontextprotocol.io) as
-`io.github.Credda-io/credda-trust`, so an MCP-aware client can discover it
-without this config being pasted by hand.
-
-That is enough for every public tool. Add credentials only for the platform tools:
-
-```json
-      "env": {
-        "CREDDA_API_KEY": "crd_live_...",
-        "CREDDA_USER_ID": "your-external-id"
-      }
-```
+`io.github.Credda-io/credda`.
 
 | Variable | Needed for |
 |----------|------------|
-| `CREDDA_API_KEY` | The platform tools: score reads, monitors, usage. |
-| `CREDDA_USER_ID` | Additionally required by `mint_my_trust_token` / `present_my_credential` / `present_my_delivery_receipts`; the default subject for `request_confirmation`. |
-| `CREDDA_API_BASE` | Optional override of `https://api.credda.io` (e.g. a staging deployment). |
+| `CREDDA_API_BASE` | Where your Credda API runs. Defaults to `http://127.0.0.1:4317`, the loopback address a local install publishes. |
+| `CREDDA_API_KEY` | A bearer key for that API. Required when it runs with `CREDDA_AUTH=enforced`; omit it for a local install with auth disabled. The key is scoped to an organisation and grants **reads across all of it**. |
 
 ## Tools
 
-Public, no key, driven entirely by a token or credential a counterparty hands you:
+All read-only. All of them page with `limit` (1–100, API default 50) and
+`offset` unless noted.
 
-| Tool | What it does |
-|------|--------------|
-| `check_trust` | Resolve a share token to the subject's score, band and a signed credential. |
-| `get_trust_export` | The full portable bundle: score, history, signed W3C VC, revocation pointer. |
-| `check_delivery_receipts` | A subject's delivery record (deliveries recorded, how many a distinct counterparty confirmed, failures, disputes, on-time rate) plus a signed credential of it. |
-| `verify_trust_credential` | Offline-verify a compact EdDSA JWT credential presented to you. |
-| `verify_verifiable_credential` | Offline-verify a W3C VC-JWT, resolving `did:web:api.credda.io` and checking revocation. |
-| `list_webhook_event_types` | The public catalog of outbound webhook event types. |
+| Tool | What it returns |
+|------|-----------------|
+| `list_repositories` | The repositories in your organisation. Start here to get an id. |
+| `list_repository_learnings` | What Credda has learned about one repository, anchored to a file or symbol, with an observation count and an ordinal weight. |
+| `list_investigations` | The investigation queue: state, outcome, duration, event and evidence counts. |
+| `get_investigation` | One run: the reported issue, ranked hypotheses, any patches (unified diff, files changed, rationale) and any verification runs over them. |
+| `list_investigation_events` | The run's timeline, cursor-paged with `since` / `nextSince` / `hasMore`. Debug events omitted unless `includeDebug`. |
+| `list_investigation_evidence` | The observations a conclusion rests on: type, phase, strength, summary, artifact pointer. |
+| `list_resolutions` | Resolution records: what was reported, whether it reproduced, the verification verdict, regression status, and the confidence class **with its `notEstablished` gaps**. |
+| `get_latest_resolution` | The newest record for one investigation, or `{"resolution": null}` when it has produced none. |
+| `get_resolution` | The whole record: reproduction and its captured failure signature, root cause, fix, verification signals, regression protection before/after, confidence and its named gaps. |
+| `list_validations` | Validation runs over a change: state, outcome, commits compared, environment status. |
+| `get_validation` | One validation, its environment and change impact, and the counts of checks, findings and evidence. |
+| `list_validation_checks` | The executed plan, in sequence. `baseStatus` is the load-bearing field. |
+| `list_validation_findings` | Severity, confidence, expected vs observed behaviour, reproduction, affected area, likely source. |
+| `list_validation_evidence` | The evidence behind a validation's checks. |
+| `get_api_health` | Readiness of the API this server reads from. No arguments. |
 
-With `CREDDA_API_KEY`:
+### Reading a result honestly
 
-| Tool | What it does |
-|------|--------------|
-| `get_user_score` | Latest computed score for one of your platform's users, by external id. |
-| `explain_user_score` | The same score broken into its factors, in plain language. |
-| `create_score_monitor` / `list_score_monitors` / `delete_score_monitor` | Edge-triggered monitors that push a `monitor.triggered` webhook instead of you polling. |
-| `get_my_usage` | Your own key's usage and quota. |
-| `mint_my_trust_token` / `present_my_credential` / `present_my_delivery_receipts` | Your side of a handshake: mint a share token for your own identity and hand over the credential. Also needs `CREDDA_USER_ID`. |
-| `request_confirmation` | Propose an outcome and get a one-time link the named counterparty uses to confirm it. Creates a PENDING ask only: nothing reaches the ledger until they confirm, and no tool here can confirm for them. |
-| `list_confirmation_requests` | The asks your key has created, with `resultingEventId` showing which ones actually produced ledger evidence. |
+Two fields carry most of the meaning and are easy to skim past:
 
-## Resources
+- **`confidence.notEstablished`** on a resolution is the list of things the run
+  did **not** establish. A record is never a bare verdict; the class and the
+  gaps travel together and neither should be read alone.
+- **`baseStatus`** on a validation check: `FAILED` there means the check was
+  re-run at the base commit and passed, so *this change* caused the failure.
+- A **null** `rootCause`, `fix` or `verification` means the run produced no such
+  row. It is a hole that is named, never one that was filled in.
 
-| Resource | URI |
-|----------|-----|
-| `trust_registry` | `credda-trust://registry`, Credda's issuer entry and any federated issuers it recognizes. |
-| `issuer_did_document` | `credda-trust://did`, the `did:web` document behind every signature. |
+## Which endpoints this wraps
 
-## How a score is produced
+Every route below is a `GET` in the Credda API (`apps/api/src/routes/`), behind
+the single bearer gate mounted on `/api/*` (`apps/api/src/auth.ts`).
 
-Credda's score is a deterministic function of an append-only ledger of counterparty-confirmed
-events. No human and no AI sets or adjusts it, and the formula is published at
-[`GET /api/v1/scoring/model`](https://api.credda.io/api/v1/scoring/model). Minting a token or
-reading a score through this server changes nothing.
+| Route | Defined in |
+|-------|-----------|
+| `/api/repositories`, `/api/repositories/:id/learnings` | `routes/repositories.ts` |
+| `/api/investigations`, `/:id`, `/:id/events`, `/:id/evidence` | `routes/investigations.ts` |
+| `/api/resolutions`, `/latest`, `/:id` | `routes/resolutions.ts` |
+| `/api/validations`, `/:id`, `/:id/checks`, `/:id/findings`, `/:id/evidence` | `routes/validations.ts` |
+| `/api/health` | `routes/health.ts` |
+
+**Not wrapped, on purpose:**
+
+- `POST /api/investigations` — the one write route. See
+  [above](#what-it-cannot-do-and-why-that-is-deliberate).
+- `GET /api/investigations/:id/stream` and `/api/validations/:id/stream` — SSE.
+  A long-lived stream has no shape in a request/response tool call; poll
+  `list_investigation_events` with `since` instead.
+- `GET /api/organization/members` — names and email addresses of your
+  colleagues. A model asking what Credda found has no use for them, and putting
+  personal data in a context window is not a thing to do incidentally.
+- `GET /api/organization/keys` — API key metadata. No secret is retrievable
+  there, and it is still not something a model needs to enumerate.
+- `GET /api/metrics` — Prometheus exposition, for a scraper rather than a
+  reader.
+
+Filter values (`state`, `outcome`, `type`, `kind`, `confidence`) are passed
+through as given and validated by the API, which rejects an unknown one with a
+400. This package does not keep its own copy of those enumerations, so it cannot
+drift from them.
+
+## Development
+
+```bash
+npm install
+npm run typecheck
+npm test        # 43 tests
+npm run build
+```
 
 ## License
 
 MIT © Credda. See [LICENSE](LICENSE).
-
----
-
-Part of the Credda SDK family:
-[`@credda/js`](https://github.com/Credda-io/credda-js) ·
-[`credda-go`](https://github.com/Credda-io/credda-go) ·
-[`@credda/cli`](https://github.com/Credda-io/credda-cli) ·
-[`@credda/mcp-server`](https://github.com/Credda-io/credda-mcp)
