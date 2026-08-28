@@ -1,8 +1,8 @@
 {
   "name": "@credda/mcp-server",
-  "version": "0.2.0",
-  "mcpName": "io.github.Credda-io/credda-trust",
-  "description": "MCP server exposing Credda's verifiable, bias-free trust layer to AI agents: check a counterparty's Credda trust before transacting, verify a credential they present to you, and mint your own to present back. Wraps existing public /verify endpoints; no scoring logic lives here.",
+  "version": "1.0.0",
+  "mcpName": "io.github.Credda-io/credda",
+  "description": "MCP server for reading what Credda found in your repositories: investigations, evidence, resolution records and validation findings. Read-only: it cannot start a run or open a pull request.",
   "license": "MIT",
   "homepage": "https://github.com/Credda-io/credda-mcp#readme",
   "bugs": {
@@ -26,7 +26,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@credda/js": "^0.8.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.25.76"
   },
@@ -48,9 +47,10 @@
     "mcp",
     "model-context-protocol",
     "ai-agents",
-    "trust",
-    "reliability-score",
-    "verifiable-credentials"
+    "bug-finding",
+    "security-vulnerabilities",
+    "root-cause-analysis",
+    "code-review"
   ],
   "engines": {
     "node": ">=18"

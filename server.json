@@ -1,39 +1,33 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.Credda-io/credda-trust",
-  "title": "Credda Trust",
-  "description": "Check a counterparty's verifiable Credda trust record; verify or present signed credentials.",
-  "version": "0.2.0",
-  "websiteUrl": "https://api.credda.io",
+  "name": "io.github.Credda-io/credda",
+  "title": "Credda",
+  "description": "Read what Credda found in your repositories: investigations, evidence, resolutions, findings.",
+  "version": "1.0.0",
+  "websiteUrl": "https://credda.io",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@credda/mcp-server",
-      "version": "0.2.0",
+      "version": "1.0.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
-          "name": "CREDDA_API_KEY",
-          "description": "Optional Credda platform API key. Without it the public read/verify tools still work; with it the platform tools (score reads, monitors, usage) are enabled.",
-          "isRequired": false,
-          "isSecret": true
-        },
-        {
-          "name": "CREDDA_USER_ID",
-          "description": "Optional. The external id this server presents credentials for; needed by mint_my_trust_token and present_my_credential, and the default subject for request_confirmation (with CREDDA_API_KEY).",
-          "isRequired": false,
-          "isSecret": false
-        },
-        {
           "name": "CREDDA_API_BASE",
-          "description": "Optional override for the Credda API base URL, e.g. for a staging deployment.",
+          "description": "Base URL of your Credda API (apps/api). Defaults to http://127.0.0.1:4317, the loopback address a local install publishes.",
           "isRequired": false,
           "isSecret": false,
-          "default": "https://api.credda.io"
+          "default": "http://127.0.0.1:4317"
+        },
+        {
+          "name": "CREDDA_API_KEY",
+          "description": "Bearer key for the Credda API. Required when that API runs with CREDDA_AUTH=enforced; omit it for a local install with auth disabled. The key grants reads across its organisation.",
+          "isRequired": false,
+          "isSecret": true
         }
       ]
     }
