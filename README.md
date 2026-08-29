@@ -136,6 +136,7 @@ All read-only. All of them page with `limit` (1–100, API default 50) and
 | `list_validation_checks` | The executed plan, in sequence. `baseStatus` is the load-bearing field. |
 | `list_validation_findings` | Severity, confidence, expected vs observed behaviour, reproduction, affected area, likely source. Narrow with `severity` and `status`. |
 | `list_validation_evidence` | The evidence behind a validation's checks, filterable by `type`. |
+| `list_validation_events` | The validation's timeline, cursor-paged with `since` / `nextSince` / `hasMore`. Debug events omitted unless `includeDebug`. |
 | `get_api_health` | Readiness of the API this server reads from. No arguments. |
 
 ### Reading a result honestly
@@ -158,19 +159,23 @@ documented at [api.credda.io/reference](https://api.credda.io/reference).
 
 | Route | Defined in |
 |-------|-----------|
-| `/api/repositories`, `/api/repositories/:id/learnings` | `routes/repositories.ts` |
+| `/api/repositories`, `/:id`, `/:id/learnings` | `routes/repositories.ts` |
 | `/api/investigations`, `/:id`, `/:id/events`, `/:id/evidence` | `routes/investigations.ts` |
 | `/api/resolutions`, `/latest`, `/:id` | `routes/resolutions.ts` |
-| `/api/validations`, `/:id`, `/:id/checks`, `/:id/findings`, `/:id/evidence` | `routes/validations.ts` |
+| `/api/validations`, `/:id`, `/:id/checks`, `/:id/findings`, `/:id/evidence`, `/:id/events` | `routes/validations.ts` |
 | `/api/health` | `routes/health.ts` |
 
-**Not wrapped, on purpose:**
+**Not wrapped, on purpose.** This list is exhaustive: every other route in
+`apps/api/src/routes/` is in the table above.
 
 - `POST /api/investigations` — the one write route. See
   [above](#what-it-cannot-do-and-why-that-is-deliberate).
 - `GET /api/investigations/:id/stream` and `/api/validations/:id/stream` — SSE.
   A long-lived stream has no shape in a request/response tool call; poll
-  `list_investigation_events` with `since` instead.
+  `list_investigation_events` or `list_validation_events` with `since` instead.
+- `GET /api/organization` — the organisation's own name, plan and counts. It
+  says nothing about what Credda found, which is the only question this server
+  exists to answer, and the key already scopes every other tool to it.
 - `GET /api/organization/members` — names and email addresses of your
   colleagues. A model asking what Credda found has no use for them, and putting
   personal data in a context window is not a thing to do incidentally.
@@ -178,8 +183,11 @@ documented at [api.credda.io/reference](https://api.credda.io/reference).
   there, and it is still not something a model needs to enumerate.
 - `GET /api/metrics` — Prometheus exposition, for a scraper rather than a
   reader.
+- `GET /livez` and `GET /openapi.json` — unauthenticated process-level routes.
+  `get_api_health` answers the readiness question a caller actually has.
 
-Filter values (`state`, `outcome`, `type`, `kind`, `confidence`) are passed
+Filter values (`state`, `outcome`, `signal`, `severity`, `status`, `type`,
+`kind`, `confidence`) are passed
 through as given and validated by the API, which rejects an unknown one with a
 400. This package does not keep its own copy of those enumerations, so it cannot
 drift from them.
@@ -189,7 +197,7 @@ drift from them.
 ```bash
 npm install
 npm run typecheck
-npm test        # 45 tests
+npm test        # 47 tests
 npm run build
 ```
 

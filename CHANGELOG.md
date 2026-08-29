@@ -41,8 +41,8 @@ promise this repository can make.
 A read-only MCP server over the Credda engine's API. It answers what Credda
 established about the reports it was given: investigations and their timelines
 and evidence, resolution records (reproduction, root cause, fix, verification,
-and the gaps each run did not close), and validation runs with their checks and
-findings. Not "what Credda found in a repository" -- nothing here goes looking;
+and the gaps each run did not close), and validation runs with their checks,
+findings and timelines. Not "what Credda found in a repository" -- nothing here goes looking;
 every run starts from a report somebody filed.
 
 It cannot start an investigation, spend a model budget, or open a pull request.

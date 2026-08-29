@@ -25,6 +25,7 @@ import {
   listValidationChecks,
   listValidationFindings,
   listValidationEvidence,
+  listValidationEvents,
   getApiHealth,
   type ToolContext,
 } from './tools.js';
@@ -115,6 +116,12 @@ const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<str
     (c) => listValidationEvidence(c, { validationId: 'val_1', type: 'TEST_RESULT' }),
     '/api/validations/val_1/evidence',
     { type: 'TEST_RESULT', limit: undefined, offset: undefined },
+  ],
+  [
+    'list_validation_events',
+    (c) => listValidationEvents(c, { validationId: 'val 1', since: 12, limit: 100, includeDebug: true }),
+    '/api/validations/val%201/events',
+    { since: 12, limit: 100, includeDebug: true },
   ],
   ['get_api_health', (c) => getApiHealth(c), '/api/health', undefined],
 ];

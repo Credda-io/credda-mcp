@@ -103,6 +103,7 @@ describe('the tools that are advertised are the read tools', () => {
         'list_repository_learnings',
         'list_resolutions',
         'list_validation_checks',
+        'list_validation_events',
         'list_validation_evidence',
         'list_validation_findings',
         'list_validations',

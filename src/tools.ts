@@ -239,6 +239,26 @@ export async function listValidationEvidence(
   });
 }
 
+/**
+ * `GET /api/validations/:id/events`. The validation's timeline, in sequence.
+ *
+ * The same cursor shape {@link listInvestigationEvents} has over the same
+ * event table: `since` in, `nextSince` and `hasMore` back. It is also what a
+ * caller polls in place of `/:id/stream`, which this package does not wrap --
+ * without it the advice to poll instead of streaming had nothing to poll on
+ * the validation side.
+ */
+export async function listValidationEvents(
+  ctx: ToolContext,
+  args: { validationId: string; since?: number; limit?: number; includeDebug?: boolean },
+) {
+  return ctx.api.get(`/api/validations/${encodeURIComponent(args.validationId)}/events`, {
+    since: args.since,
+    limit: args.limit,
+    includeDebug: args.includeDebug,
+  });
+}
+
 // ── Health ───────────────────────────────────────────────────────────────────
 
 /**

@@ -28,6 +28,7 @@ import {
   listValidationChecks,
   listValidationFindings,
   listValidationEvidence,
+  listValidationEvents,
   getApiHealth,
   type ToolContext,
 } from './tools.js';
@@ -379,6 +380,25 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
     },
     (a: { validationId: string; type?: string; limit?: number; offset?: number }) =>
       listValidationEvidence(ctx, a),
+  );
+
+  register(
+    'list_validation_events',
+    {
+      title: 'Read a validation\'s timeline',
+      description:
+        'Read the ordered timeline of one validation run: what it did, in sequence. Page with ' +
+        '`since`, then follow `nextSince` while `hasMore` is true. Debug-level events are omitted ' +
+        'unless includeDebug is true.' + UNTRUSTED,
+      inputSchema: {
+        validationId: z.string().min(1).describe('Validation id.'),
+        since: z.number().int().min(0).optional().describe('Sequence cursor; 0 starts at the beginning.'),
+        limit: z.number().int().min(1).max(500).optional().describe('Page size, 1-500.'),
+        includeDebug: z.boolean().optional().describe('Include debug-level events.'),
+      },
+    },
+    (a: { validationId: string; since?: number; limit?: number; includeDebug?: boolean }) =>
+      listValidationEvents(ctx, a),
   );
 
   register(
