@@ -43,6 +43,17 @@ export async function listRepositories(ctx: ToolContext, args: PageArgs = {}) {
 }
 
 /**
+ * `GET /api/repositories/:id`. One repository, resolved from an id.
+ *
+ * Every investigation and validation row this server returns carries a
+ * `repositoryId`, and until this route existed resolving one meant paging
+ * {@link listRepositories} until the id turned up.
+ */
+export async function getRepository(ctx: ToolContext, args: { repositoryId: string }) {
+  return ctx.api.get(`/api/repositories/${encodeURIComponent(args.repositoryId)}`);
+}
+
+/**
  * `GET /api/repositories/:id/learnings`. What Credda has learned about this
  * repository across investigations. An empty list is a real answer: it means
  * nothing has been learned here yet, not that the repository is unknown.
@@ -66,13 +77,18 @@ export async function listRepositoryLearnings(
  * tool did not pass, so the two questions most often asked of a queue -- whose
  * repository, and how did it end -- could not be asked at all. The sibling
  * {@link listValidations} carried its full set throughout.
+ *
+ * `signal` is the only way to ask for every investigation one signal caused.
+ * Filtering `/api/resolutions` by the same signal shows only the runs that
+ * produced a record, which hides exactly the runs that resolved nothing.
  */
 export async function listInvestigations(
   ctx: ToolContext,
-  args: PageArgs & { repository?: string; state?: string; outcome?: string } = {},
+  args: PageArgs & { repository?: string; signal?: string; state?: string; outcome?: string } = {},
 ) {
   return ctx.api.get('/api/investigations', {
     repository: args.repository,
+    signal: args.signal,
     state: args.state,
     outcome: args.outcome,
     ...page(args),
@@ -199,17 +215,28 @@ export async function listValidationChecks(
  */
 export async function listValidationFindings(
   ctx: ToolContext,
-  args: PageArgs & { validationId: string },
+  args: PageArgs & { validationId: string; severity?: string; status?: string },
 ) {
-  return ctx.api.get(`/api/validations/${encodeURIComponent(args.validationId)}/findings`, page(args));
+  return ctx.api.get(`/api/validations/${encodeURIComponent(args.validationId)}/findings`, {
+    severity: args.severity,
+    status: args.status,
+    ...page(args),
+  });
 }
 
-/** `GET /api/validations/:id/evidence`. The evidence behind a validation's checks. */
+/**
+ * `GET /api/validations/:id/evidence`. The evidence behind a validation's
+ * checks, filterable by `type` -- the same filter
+ * {@link listInvestigationEvidence} takes over the same rows.
+ */
 export async function listValidationEvidence(
   ctx: ToolContext,
-  args: PageArgs & { validationId: string },
+  args: PageArgs & { validationId: string; type?: string },
 ) {
-  return ctx.api.get(`/api/validations/${encodeURIComponent(args.validationId)}/evidence`, page(args));
+  return ctx.api.get(`/api/validations/${encodeURIComponent(args.validationId)}/evidence`, {
+    type: args.type,
+    ...page(args),
+  });
 }
 
 // ── Health ───────────────────────────────────────────────────────────────────

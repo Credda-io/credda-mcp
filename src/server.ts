@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { createApiClient } from './apiClient.js';
 import {
   listRepositories,
+  getRepository,
   listRepositoryLearnings,
   listInvestigations,
   getInvestigation,
@@ -113,6 +114,20 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
   );
 
   register(
+    'get_repository',
+    {
+      title: 'Read one repository by id',
+      description:
+        'Read one repository by its id: name, clone source, default branch. Every investigation ' +
+        'and validation row carries a repositoryId, and this is how you resolve one without ' +
+        'paging list_repositories looking for it. A local checkout reports its source as ' +
+        '`local:<name>`, which is a label and not something to clone.' + UNTRUSTED,
+      inputSchema: { repositoryId: z.string().min(1).describe('Repository id.') },
+    },
+    (a: { repositoryId: string }) => getRepository(ctx, a),
+  );
+
+  register(
     'list_repository_learnings',
     {
       title: 'What Credda has learned about a repository',
@@ -142,6 +157,15 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
         UNTRUSTED,
       inputSchema: {
         repository: z.string().min(1).optional().describe('Only investigations for this repository id.'),
+        signal: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            'Only investigations this signal raised. The only way to see every run one signal ' +
+              'caused, including the ones that resolved nothing; filtering resolutions by the ' +
+              'same signal shows only the runs that produced a record.',
+          ),
         state: z.string().min(1).optional().describe('Filter by investigation state; the API rejects an unknown one.'),
         outcome: z
           .string()
@@ -155,8 +179,14 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
         offset,
       },
     },
-    (a: { repository?: string; state?: string; outcome?: string; limit?: number; offset?: number }) =>
-      listInvestigations(ctx, a),
+    (a: {
+      repository?: string;
+      signal?: string;
+      state?: string;
+      outcome?: string;
+      limit?: number;
+      offset?: number;
+    }) => listInvestigations(ctx, a),
   );
 
   register(
@@ -314,10 +344,23 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
       description:
         'Read what a validation found: title, severity, confidence, expected versus observed ' +
         'behaviour, how to reproduce it, the affected area and the likely source, each tied to the ' +
-        'check that produced it.' + UNTRUSTED,
-      inputSchema: { validationId: z.string().min(1).describe('Validation id.'), limit, offset },
+        'check that produced it. Narrow with severity and status rather than pulling every row.' +
+        UNTRUSTED,
+      inputSchema: {
+        validationId: z.string().min(1).describe('Validation id.'),
+        severity: z.string().min(1).optional().describe('Filter by severity; the API rejects an unknown one.'),
+        status: z.string().min(1).optional().describe('Filter by finding status; the API rejects an unknown one.'),
+        limit,
+        offset,
+      },
     },
-    (a: { validationId: string; limit?: number; offset?: number }) => listValidationFindings(ctx, a),
+    (a: {
+      validationId: string;
+      severity?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }) => listValidationFindings(ctx, a),
   );
 
   register(
@@ -327,9 +370,15 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
       description:
         'Read the evidence a validation captured, tied to the check that cited it. Use it to check ' +
         'a finding against what was actually observed.' + UNTRUSTED,
-      inputSchema: { validationId: z.string().min(1).describe('Validation id.'), limit, offset },
+      inputSchema: {
+        validationId: z.string().min(1).describe('Validation id.'),
+        type: z.string().min(1).optional().describe('Filter by evidence type; the API rejects an unknown one.'),
+        limit,
+        offset,
+      },
     },
-    (a: { validationId: string; limit?: number; offset?: number }) => listValidationEvidence(ctx, a),
+    (a: { validationId: string; type?: string; limit?: number; offset?: number }) =>
+      listValidationEvidence(ctx, a),
   );
 
   register(

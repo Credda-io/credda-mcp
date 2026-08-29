@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   listRepositories,
+  getRepository,
   listRepositoryLearnings,
   listInvestigations,
   getInvestigation,
@@ -38,6 +39,7 @@ function fakeApi(result: unknown = { ok: true }) {
 /** The path each handler must ask for, and the query it must build. */
 const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<string, unknown> | undefined][] = [
   ['list_repositories', (c) => listRepositories(c, { limit: 10, offset: 5 }), '/api/repositories', { limit: 10, offset: 5 }],
+  ['get_repository', (c) => getRepository(c, { repositoryId: 'repo 1' }), '/api/repositories/repo%201', undefined],
   [
     'list_repository_learnings',
     (c) => listRepositoryLearnings(c, { repositoryId: 'repo 1', kind: 'INVARIANT', limit: 2 }),
@@ -49,12 +51,14 @@ const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<str
     (c) =>
       listInvestigations(c, {
         repository: 'repo_1',
+        signal: 'sig_1',
         state: 'READY_FOR_REVIEW',
         outcome: 'VERIFIED',
       }),
     '/api/investigations',
     {
       repository: 'repo_1',
+      signal: 'sig_1',
       state: 'READY_FOR_REVIEW',
       outcome: 'VERIFIED',
       limit: undefined,
@@ -102,15 +106,15 @@ const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<str
   ],
   [
     'list_validation_findings',
-    (c) => listValidationFindings(c, { validationId: 'val_1' }),
+    (c) => listValidationFindings(c, { validationId: 'val_1', severity: 'HIGH', status: 'OPEN' }),
     '/api/validations/val_1/findings',
-    { limit: undefined, offset: undefined },
+    { severity: 'HIGH', status: 'OPEN', limit: undefined, offset: undefined },
   ],
   [
     'list_validation_evidence',
-    (c) => listValidationEvidence(c, { validationId: 'val_1' }),
+    (c) => listValidationEvidence(c, { validationId: 'val_1', type: 'TEST_RESULT' }),
     '/api/validations/val_1/evidence',
-    { limit: undefined, offset: undefined },
+    { type: 'TEST_RESULT', limit: undefined, offset: undefined },
   ],
   ['get_api_health', (c) => getApiHealth(c), '/api/health', undefined],
 ];

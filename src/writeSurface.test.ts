@@ -93,6 +93,7 @@ describe('the tools that are advertised are the read tools', () => {
         'get_api_health',
         'get_investigation',
         'get_latest_resolution',
+        'get_repository',
         'get_resolution',
         'get_validation',
         'list_investigation_evidence',

@@ -122,8 +122,9 @@ All read-only. All of them page with `limit` (1–100, API default 50) and
 | Tool | What it returns |
 |------|-----------------|
 | `list_repositories` | The repositories in your organisation. Start here to get an id. |
+| `get_repository` | One repository by id: name, clone source, default branch. Resolves the `repositoryId` every other row carries. |
 | `list_repository_learnings` | What Credda has learned about one repository, anchored to a file or symbol, with an observation count and an ordinal weight. |
-| `list_investigations` | The investigation queue: state, outcome, duration, event and evidence counts. |
+| `list_investigations` | The investigation queue: state, outcome, duration, event and evidence counts. Filter by `repository`, `signal`, `state`, `outcome`. |
 | `get_investigation` | One run: the reported issue, ranked hypotheses, any patches (unified diff, files changed, rationale) and any verification runs over them. |
 | `list_investigation_events` | The run's timeline, cursor-paged with `since` / `nextSince` / `hasMore`. Debug events omitted unless `includeDebug`. |
 | `list_investigation_evidence` | The observations a conclusion rests on: type, phase, strength, summary, artifact pointer. |
@@ -133,8 +134,8 @@ All read-only. All of them page with `limit` (1–100, API default 50) and
 | `list_validations` | Validation runs over a change: state, outcome, commits compared, environment status. |
 | `get_validation` | One validation, its environment and change impact, and the counts of checks, findings and evidence. |
 | `list_validation_checks` | The executed plan, in sequence. `baseStatus` is the load-bearing field. |
-| `list_validation_findings` | Severity, confidence, expected vs observed behaviour, reproduction, affected area, likely source. |
-| `list_validation_evidence` | The evidence behind a validation's checks. |
+| `list_validation_findings` | Severity, confidence, expected vs observed behaviour, reproduction, affected area, likely source. Narrow with `severity` and `status`. |
+| `list_validation_evidence` | The evidence behind a validation's checks, filterable by `type`. |
 | `get_api_health` | Readiness of the API this server reads from. No arguments. |
 
 ### Reading a result honestly
