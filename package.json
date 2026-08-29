@@ -47,7 +47,7 @@
     "mcp",
     "model-context-protocol",
     "ai-agents",
-    "bug-finding",
+    "bug-reproduction",
     "security-vulnerabilities",
     "root-cause-analysis",
     "code-review"

@@ -137,7 +137,8 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
       title: 'List investigations',
       description:
         'List Credda investigations newest first, with each run\'s state, outcome, duration and ' +
-        'event/evidence counts, plus the total. This is the answer to "what has Credda found".' +
+        'event/evidence counts, plus the total. Each run started from a bug report or vulnerability ' +
+        'somebody filed; this is not a scan that goes looking for defects.' +
         UNTRUSTED,
       inputSchema: {
         state: z.string().min(1).optional().describe('Filter by investigation state; the API rejects an unknown one.'),

@@ -22,10 +22,12 @@
 > behaviour, pin `@credda/mcp-server@0.2.0`. The full list is in
 > [CHANGELOG.md](CHANGELOG.md).
 
-**Credda finds the bugs and security vulnerabilities in a company's production
-and QA environments, reproduces the failure, diagnoses the cause, writes the
-patch, proves it with a test that fails before and passes after, and opens a
-pull request. It proposes; it never merges.**
+**Credda takes a bug report or a security vulnerability somebody already
+filed, reproduces the failure, diagnoses the cause, writes the patch, and
+proves it with a test that fails before and passes after. It does not go
+looking for defects — the input is a labelled report. It proposes; it never
+merges, and opening a pull request is an opt-in Action input that is off by
+default (`open-pull-request` in `action/action.yml`).**
 
 This package is not that engine. It is a [Model Context
 Protocol](https://modelcontextprotocol.io) server that lets an agent **read what
@@ -40,7 +42,7 @@ no engine logic.
 a pull request in anybody's repository.**
 
 That is a property of this MCP server today, not a statement about the product:
-Credda's whole point is the pull request, and the engine opens them. What is
+the engine can open a pull request, if an operator opts in to it. What is
 true here is narrower and worth being exact about. An MCP server is driven by a
 model, and this server is what fills that model's context with issue bodies,
 logs, diffs and check output out of a real repository. A tool that spends money
@@ -50,8 +52,8 @@ is reads only.
 
 The API this wraps does have one write route, `POST /api/investigations`, which
 creates a run. **It is deliberately not exposed here.** Starting work costs
-money on a customer's account and is the first step of a chain that ends in a
-pull request; an operator starts a run with the CLI, deliberately, as
+money on a customer's account and is the first step of a chain that can end in
+a proposed patch; an operator starts a run with the CLI, deliberately, as
 themselves. The refusal is enforced rather than promised — `src/apiClient.ts`
 has exactly one HTTP method and the verb is a literal `'GET'`, and
 [`src/writeSurface.test.ts`](src/writeSurface.test.ts) invokes **every**
@@ -93,7 +95,7 @@ your own credentials.
 `@credda/mcp-server` is on npm, so `npx` fetches it with no checkout and no
 build.
 
-> **What `npx -y @credda/mcp-server` gets you today — checked 2026-08-28.** Not
+> **What `npx -y @credda/mcp-server` gets you today — checked 2026-08-29.** Not
 > this server. The latest version on npm is **0.2.0**, the retired trust-layer
 > server described in the warning at the top of this file; `1.0.0`, which this
 > README documents, is not published yet. The
