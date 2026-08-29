@@ -59,9 +59,24 @@ export async function listRepositoryLearnings(
 
 // ── Investigations ───────────────────────────────────────────────────────────
 
-/** `GET /api/investigations`. The queue, newest first, with a `total`. */
-export async function listInvestigations(ctx: ToolContext, args: PageArgs & { state?: string } = {}) {
-  return ctx.api.get('/api/investigations', { state: args.state, ...page(args) });
+/**
+ * `GET /api/investigations`. The queue, newest first, with a `total`.
+ *
+ * `repository` and `outcome` are filters the route has always accepted and this
+ * tool did not pass, so the two questions most often asked of a queue -- whose
+ * repository, and how did it end -- could not be asked at all. The sibling
+ * {@link listValidations} carried its full set throughout.
+ */
+export async function listInvestigations(
+  ctx: ToolContext,
+  args: PageArgs & { repository?: string; state?: string; outcome?: string } = {},
+) {
+  return ctx.api.get('/api/investigations', {
+    repository: args.repository,
+    state: args.state,
+    outcome: args.outcome,
+    ...page(args),
+  });
 }
 
 /**

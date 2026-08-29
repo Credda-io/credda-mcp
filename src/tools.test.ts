@@ -46,9 +46,20 @@ const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<str
   ],
   [
     'list_investigations',
-    (c) => listInvestigations(c, { state: 'COMPLETED' }),
+    (c) =>
+      listInvestigations(c, {
+        repository: 'repo_1',
+        state: 'READY_FOR_REVIEW',
+        outcome: 'VERIFIED',
+      }),
     '/api/investigations',
-    { state: 'COMPLETED', limit: undefined, offset: undefined },
+    {
+      repository: 'repo_1',
+      state: 'READY_FOR_REVIEW',
+      outcome: 'VERIFIED',
+      limit: undefined,
+      offset: undefined,
+    },
   ],
   ['get_investigation', (c) => getInvestigation(c, { investigationId: 'inv_1' }), '/api/investigations/inv_1', undefined],
   [

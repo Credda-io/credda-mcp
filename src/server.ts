@@ -141,12 +141,22 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
         'somebody filed; this is not a scan that goes looking for defects.' +
         UNTRUSTED,
       inputSchema: {
+        repository: z.string().min(1).optional().describe('Only investigations for this repository id.'),
         state: z.string().min(1).optional().describe('Filter by investigation state; the API rejects an unknown one.'),
+        outcome: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            'Filter by terminal outcome; the API rejects an unknown one. A run still in flight ' +
+              'has no outcome and matches no value here, so ask by state instead.',
+          ),
         limit,
         offset,
       },
     },
-    (a: { state?: string; limit?: number; offset?: number }) => listInvestigations(ctx, a),
+    (a: { repository?: string; state?: string; outcome?: string; limit?: number; offset?: number }) =>
+      listInvestigations(ctx, a),
   );
 
   register(
