@@ -83,11 +83,20 @@ export function createApiClient(options: ApiClientOptions = {}): CreddaApi {
 
       if (!response.ok) {
         const envelope = (body as { error?: { code?: string; message?: string } } | null)?.error;
-        throw new CreddaApiError(
-          response.status,
-          envelope?.code ?? 'HTTP_ERROR',
-          envelope?.message ?? `${String(response.status)} from ${path}`,
-        );
+        let message = envelope?.message ?? `${String(response.status)} from ${path}`;
+        /*
+         * The API's own 401 text is "Bearer token required" or "Invalid API
+         * key" -- accurate about what it saw, and silent about what the reader
+         * has to change. The reader here is somebody who put this server in an
+         * MCP client config, so the actionable half is the name of the variable
+         * that config sets. Appended rather than substituted, because which of
+         * the two 401s came back is the part that says whether the key is
+         * missing or wrong.
+         */
+        if (response.status === 401) {
+          message += `. Set CREDDA_API_KEY in this server's environment to a key for ${base}, or run the API with CREDDA_AUTH=disabled for a local install.`;
+        }
+        throw new CreddaApiError(response.status, envelope?.code ?? 'HTTP_ERROR', message);
       }
       return body;
     },

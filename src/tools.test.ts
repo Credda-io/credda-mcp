@@ -167,6 +167,33 @@ describe('the API client', () => {
     });
   });
 
+  it('names the variable to set when the API rejects the key', async () => {
+    // The API's own 401 text says what it saw and not what to change. The
+    // reader is somebody editing an MCP client config, so the message has to
+    // carry the variable name that config sets.
+    const api = createApiClient({
+      apiBase: 'http://api.test',
+      apiKey: 'wrong',
+      fetchImpl: respond(401, { error: { code: 'UNAUTHENTICATED', message: 'Invalid API key' } }),
+    });
+    const err = (await api.get('/api/health').catch((e: unknown) => e)) as CreddaApiError;
+    expect(err.status).toBe(401);
+    expect(err.code).toBe('UNAUTHENTICATED');
+    // The API's own words survive; the guidance is appended, not substituted.
+    expect(err.message).toContain('Invalid API key');
+    expect(err.message).toContain('CREDDA_API_KEY');
+    expect(err.message).toContain('http://api.test');
+  });
+
+  it('leaves a non-401 message exactly as the API wrote it', async () => {
+    const api = createApiClient({
+      apiBase: 'http://api.test',
+      fetchImpl: respond(403, { error: { code: 'FORBIDDEN', message: 'Not your organisation' } }),
+    });
+    const err = (await api.get('/api/health').catch((e: unknown) => e)) as CreddaApiError;
+    expect(err.message).toBe('Not your organisation');
+  });
+
   it('says where it tried to reach when the API is not running', async () => {
     const api = createApiClient({
       apiBase: 'http://api.test',

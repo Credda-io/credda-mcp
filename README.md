@@ -26,8 +26,11 @@
 filed, reproduces the failure, diagnoses the cause, writes the patch, and
 proves it with a test that fails before and passes after. It does not go
 looking for defects — the input is a labelled report. It proposes; it never
-merges, and opening a pull request is an opt-in Action input that is off by
-default (`open-pull-request` in `action/action.yml`).**
+merges. Whether the diff becomes a pull request depends on which mechanism
+delivered it: the GitHub App path opens one with no flag, for a run that reaches
+`READY_FOR_REVIEW` with a proven verdict, while the GitHub Action opens none
+unless the caller sets `open-pull-request`, which defaults to `false`
+(`action/action.yml`).**
 
 This package is not that engine. It is a [Model Context
 Protocol](https://modelcontextprotocol.io) server that lets an agent **read what
@@ -42,8 +45,9 @@ no engine logic.
 a pull request in anybody's repository.**
 
 That is a property of this MCP server today, not a statement about the product:
-the engine can open a pull request, if an operator opts in to it. What is
-true here is narrower and worth being exact about. An MCP server is driven by a
+the engine can open a pull request, and on the GitHub App path it does so
+without anybody opting in — the gate there is the run's state and verdict, not a
+switch. What is true here is narrower and worth being exact about. An MCP server is driven by a
 model, and this server is what fills that model's context with issue bodies,
 logs, diffs and check output out of a real repository. A tool that spends money
 or writes to a repository, reachable by a model that has just read attacker-
@@ -186,7 +190,7 @@ drift from them.
 ```bash
 npm install
 npm run typecheck
-npm test        # 43 tests
+npm test        # 45 tests
 npm run build
 ```
 
