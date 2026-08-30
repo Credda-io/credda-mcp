@@ -52,11 +52,12 @@ or writes to a repository, reachable by a model that has just read attacker-
 controlled text, is a bad trade at any level of prompt hygiene. So the surface
 is reads only.
 
-The API this wraps does have one write route, `POST /api/investigations`, which
-creates a run. **It is deliberately not exposed here.** Starting work costs
-money on a customer's account and is the first step of a chain that can end in
-a proposed patch; an operator starts a run with the CLI, deliberately, as
-themselves. The refusal is enforced rather than promised — `src/apiClient.ts`
+The API this wraps has two write routes — `POST /api/investigations`, which
+creates a run, and `POST /api/investigations/:id/cancel`, which stops one.
+**Neither is exposed here.** Starting work costs money on a customer's account
+and is the first step of a chain that can end in a proposed patch, and stopping
+somebody's run is a decision a person makes; an operator does both with the CLI,
+deliberately, as themselves. The refusal is enforced rather than promised — `src/apiClient.ts`
 has exactly one HTTP method and the verb is a literal `'GET'`, and
 [`src/writeSurface.test.ts`](src/writeSurface.test.ts) invokes **every**
 advertised tool through a real MCP client and fails if any request that comes
@@ -153,26 +154,55 @@ Two fields carry most of the meaning and are easy to skim past:
 
 ## Which endpoints this wraps
 
-Every route below is a `GET` in the Credda API (`apps/api/src/routes/`), behind
-the single bearer gate mounted on `/api/*` (`apps/api/src/auth.ts`). They are
-documented at [api.credda.io/reference](https://api.credda.io/reference).
+One row per route the engine serves and this server reads, and every one of them
+a `GET` behind the single bearer gate mounted on `/api/*`
+(`apps/api/src/auth.ts`). They are documented at
+[api.credda.io/reference](https://api.credda.io/reference).
 
-| Route | Defined in |
-|-------|-----------|
-| `/api/repositories`, `/:id`, `/:id/learnings` | `routes/repositories.ts` |
-| `/api/investigations`, `/:id`, `/:id/events`, `/:id/evidence` | `routes/investigations.ts` |
-| `/api/resolutions`, `/latest`, `/:id` | `routes/resolutions.ts` |
-| `/api/validations`, `/:id`, `/:id/checks`, `/:id/findings`, `/:id/evidence`, `/:id/events` | `routes/validations.ts` |
-| `/api/health` | `routes/health.ts` |
+This table used to group routes by the engine file that defines them, which made
+it four lines shorter and unable to notice a route the engine gained -- it went
+stale on `GET /api/repositories/:id`, and it still called
+`POST /api/investigations` "the one write route" after a second one shipped. It
+is now one row per route and `src/routeSurface.test.ts` holds it to
+`src/route-surface.json`, the route list generated in the engine's own
+repository. A route missing from this table fails the suite by name.
 
-**Not wrapped, on purpose.** This list is exhaustive: every other route in
-`apps/api/src/routes/` is in the table above.
+| Route | Tool |
+|-------|------|
+| `GET /api/repositories` | `list_repositories` |
+| `GET /api/repositories/:id` | `get_repository` |
+| `GET /api/repositories/:id/learnings` | `list_repository_learnings` |
+| `GET /api/investigations` | `list_investigations` |
+| `GET /api/investigations/:id` | `get_investigation` |
+| `GET /api/investigations/:id/events` | `list_investigation_events` |
+| `GET /api/investigations/:id/evidence` | `list_investigation_evidence` |
+| `GET /api/resolutions` | `list_resolutions` |
+| `GET /api/resolutions/latest` | `get_latest_resolution` |
+| `GET /api/resolutions/:id` | `get_resolution` |
+| `GET /api/validations` | `list_validations` |
+| `GET /api/validations/:id` | `get_validation` |
+| `GET /api/validations/:id/checks` | `list_validation_checks` |
+| `GET /api/validations/:id/findings` | `list_validation_findings` |
+| `GET /api/validations/:id/evidence` | `list_validation_evidence` |
+| `GET /api/validations/:id/events` | `list_validation_events` |
+| `GET /api/health` | `get_api_health` |
 
-- `POST /api/investigations` — the one write route. See
+**Not wrapped, on purpose.** This list is exhaustive against the engine's
+published route surface, and the suite fails if it stops being.
+
+- `POST /api/investigations` — a write, and the route that spends a model budget
+  on your account. See
   [above](#what-it-cannot-do-and-why-that-is-deliberate).
-- `GET /api/investigations/:id/stream` and `/api/validations/:id/stream` — SSE.
-  A long-lived stream has no shape in a request/response tool call; poll
-  `list_investigation_events` or `list_validation_events` with `since` instead.
+- `POST /api/investigations/:id/cancel` — a write. It shipped in the engine on
+  2026-08-29, and this list said "the one write route" until the route surface
+  was wired in and said otherwise. Stopping a run is an operator's decision, and
+  a tool for it would put "cancel somebody's run" one jailbroken issue body
+  away; the CLI stops a run, deliberately, as a person.
+- `GET /api/investigations/:id/stream` — SSE. A long-lived stream has no shape
+  in a request/response tool call; poll `list_investigation_events` with `since`
+  instead.
+- `GET /api/validations/:id/stream` — SSE, for the same reason. Poll
+  `list_validation_events` with `since`.
 - `GET /api/organization` — the organisation's own name, plan and counts. It
   says nothing about what Credda found, which is the only question this server
   exists to answer, and the key already scopes every other tool to it.
@@ -183,8 +213,10 @@ documented at [api.credda.io/reference](https://api.credda.io/reference).
   there, and it is still not something a model needs to enumerate.
 - `GET /api/metrics` — Prometheus exposition, for a scraper rather than a
   reader.
-- `GET /livez` and `GET /openapi.json` — unauthenticated process-level routes.
-  `get_api_health` answers the readiness question a caller actually has.
+- `GET /livez` — a process liveness probe with no body. `get_api_health` answers
+  the readiness question a caller actually has.
+- `GET /openapi.json` — the engine's own specification. A model that can call
+  the tools above does not need the document describing routes it cannot reach.
 
 Filter values (`state`, `outcome`, `signal`, `severity`, `status`, `type`,
 `kind`, `confidence`) are passed

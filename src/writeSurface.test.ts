@@ -15,13 +15,20 @@
  *   2. it cannot open, update or merge a pull request in anybody's repository;
  *   3. it cannot apply a patch anywhere.
  *
- * `POST /api/investigations` EXISTS AND IS DELIBERATELY NOT WRAPPED.
- * `apps/api/src/routes/investigations.ts` accepts it and creates a run in
- * `CREATED`. It is the one non-GET route on the API, it is the one route that
- * causes work to be done, and a tool for it would put "start a run" one
- * jailbroken issue body away. An operator who wants a run starts it with the
- * CLI, deliberately, as themselves. If a later edit exposes it, these tests
- * fail, and the README must be changed in the same commit to say so.
+ * THE ENGINE'S TWO WRITE ROUTES EXIST AND ARE DELIBERATELY NOT WRAPPED.
+ * `apps/api/src/routes/investigations.ts` accepts `POST /api/investigations`
+ * and creates a run in `CREATED`, and accepts
+ * `POST /api/investigations/{id}/cancel` and stops one. They are the only
+ * non-GET routes on the API and the only ones that change anything, and a tool
+ * for either would put "start a run" -- or "stop somebody's run" -- one
+ * jailbroken issue body away. An operator does both with the CLI, deliberately,
+ * as themselves. If a later edit exposes one, these tests fail, and the README
+ * must be changed in the same commit to say so.
+ *
+ * This file proves the surface is GET-only. It cannot notice a THIRD write
+ * route the engine gains, because it has no list of what the engine serves;
+ * `src/routeSurface.test.ts` holds that list, from the engine's own generated
+ * route surface, and requires every unwrapped route to carry a reason.
  *
  * Three independent guards, because each alone is defeatable:
  *   1. over the wire: what `listTools()` advertises, and its annotations;

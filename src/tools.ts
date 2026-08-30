@@ -6,9 +6,11 @@
  * EVERY HANDLER IN THIS FILE IS A READ. There is no handler that starts an
  * investigation, spends a model budget, writes to a repository, or opens a
  * pull request, and `src/apiClient.ts` has no method that could issue such a
- * request. The API does have `POST /api/investigations`
- * (`apps/api/src/routes/investigations.ts`); this package deliberately does not
- * wrap it. See `src/writeSurface.test.ts`, which fails if that changes.
+ * request. The API has two write routes -- `POST /api/investigations` and
+ * `POST /api/investigations/{id}/cancel` (`apps/api/src/routes/investigations.ts`)
+ * -- and this package deliberately wraps neither. See `src/writeSurface.test.ts`,
+ * which fails if that changes, and `src/routeSurface.test.ts`, which holds those
+ * two exclusions to a stated reason rather than to silence.
  *
  * ⚠️ EVERYTHING THESE TOOLS RETURN IS UNTRUSTED INPUT. Issue titles and bodies,
  * evidence summaries, log excerpts, diffs and check output all originate in a
