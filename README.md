@@ -168,6 +168,23 @@ Two fields carry most of the meaning and are easy to skim past:
 - A **null** `rootCause`, `fix` or `verification` means the run produced no such
   row. It is a hole that is named, never one that was filled in.
 
+## When a call fails
+
+A failed call comes back marked as an error, carrying what the API said. A
+refused key keeps the engine's own message and appends the variable an MCP
+config sets (`CREDDA_API_KEY`) and the base URL that was tried; an API that is
+not running answers with the address it could not reach; every other status
+carries the engine's code and message rather than a bare number.
+
+That matters more here than in an ordinary client, because the reader is a
+model: a failure reported as a successful empty result reads as "there is
+nothing there", and gets acted on. Until 2026-08-30 nothing checked it — the
+handler's catch could be replaced with one that answered every failure with the
+text `null` and no error flag, and all 61 tests still passed.
+[`src/errorSurface.test.ts`](src/errorSurface.test.ts) now drives every
+advertised tool into a 401, a 404, a 500 and an unreachable API, and fails if
+any of them comes back looking like an answer.
+
 ## Which endpoints this wraps
 
 One row per route the engine serves and this server reads, and every one of them
