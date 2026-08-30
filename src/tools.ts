@@ -83,14 +83,28 @@ export async function listRepositoryLearnings(
  * `signal` is the only way to ask for every investigation one signal caused.
  * Filtering `/api/resolutions` by the same signal shows only the runs that
  * produced a record, which hides exactly the runs that resolved nothing.
+ *
+ * `hasSignal` asks the question `signal` cannot: whether a run was raised by a
+ * reported failure at all. With `total` counted under the filter, one call with
+ * `limit: 1` is the exact count over the organisation, where a caller otherwise
+ * paged the queue and counted rows -- a floor of one page, never a total. The
+ * engine refuses it alongside `signal` with a 400, because the two narrow one
+ * column; ask one or the other.
  */
 export async function listInvestigations(
   ctx: ToolContext,
-  args: PageArgs & { repository?: string; signal?: string; state?: string; outcome?: string } = {},
+  args: PageArgs & {
+    repository?: string;
+    signal?: string;
+    hasSignal?: boolean;
+    state?: string;
+    outcome?: string;
+  } = {},
 ) {
   return ctx.api.get('/api/investigations', {
     repository: args.repository,
     signal: args.signal,
+    hasSignal: args.hasSignal,
     state: args.state,
     outcome: args.outcome,
     ...page(args),
@@ -146,11 +160,19 @@ export async function listInvestigationEvidence(
  */
 export async function listResolutions(
   ctx: ToolContext,
-  args: PageArgs & { investigation?: string; signal?: string; confidence?: string } = {},
+  args: PageArgs & {
+    investigation?: string;
+    signal?: string;
+    hasSignal?: boolean;
+    confidence?: string;
+  } = {},
 ) {
   return ctx.api.get('/api/resolutions', {
     investigation: args.investigation,
     signal: args.signal,
+    // Whether the record names a signal at all, rather than which one. Refused
+    // alongside `signal` by the engine, which narrows the same column.
+    hasSignal: args.hasSignal,
     confidence: args.confidence,
     ...page(args),
   });
@@ -206,9 +228,15 @@ export async function getValidation(ctx: ToolContext, args: { validationId: stri
  */
 export async function listValidationChecks(
   ctx: ToolContext,
-  args: PageArgs & { validationId: string },
+  args: PageArgs & { validationId: string; status?: string },
 ) {
-  return ctx.api.get(`/api/validations/${encodeURIComponent(args.validationId)}/checks`, page(args));
+  return ctx.api.get(`/api/validations/${encodeURIComponent(args.validationId)}/checks`, {
+    // `total` comes back counted under this filter, so `status: 'FAILED'` with
+    // `limit: 1` is how many checks failed rather than how many failed on the
+    // page that was fetched.
+    status: args.status,
+    ...page(args),
+  });
 }
 
 /**

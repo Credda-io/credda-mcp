@@ -1,9 +1,9 @@
 {
   "generator": "scripts/generate-route-surface.ts",
-  "generatedAt": "2026-08-30T03:06:42.876Z",
-  "coreCommit": "542b5cf22ca255e532895fc4f60f53fcf2b1eff3",
+  "generatedAt": "2026-08-30T05:43:42.908Z",
+  "coreCommit": "e167f0b3bf413b0583fcb7e4ed46b4a8636477c2",
   "digest": "sha256-cc61f06334eb88f0a6a9475c8fb381c8ad2b454e4cfa1ab42dfa774a29dbb108",
-  "vocabularyDigest": "sha256-444542fd48f2ba371ad953a7732302b4ff7ea7cd39dfa32bbce30dea6b0ac0b3",
+  "vocabularyDigest": "sha256-937dfad89693fdc6a3f1502110076d0a150b440ea44dcc24d93e07b31bf7f81a",
   "routeCount": 27,
   "routes": [
     {
@@ -300,6 +300,12 @@
   ],
   "vocabularies": {
     "GET /api/investigations": {
+      "hasSignal": [
+        "true",
+        "false",
+        "1",
+        "0"
+      ],
       "state": [
         "CREATED",
         "PREPARING_ENVIRONMENT",
@@ -384,6 +390,12 @@
       ]
     },
     "GET /api/resolutions": {
+      "hasSignal": [
+        "true",
+        "false",
+        "1",
+        "0"
+      ],
       "confidence": [
         "ESTABLISHED",
         "PARTIALLY_ESTABLISHED",
@@ -412,6 +424,17 @@
         "NO_CHANGE_REQUIRED",
         "CANCELLED",
         "ERRORED"
+      ]
+    },
+    "GET /api/validations/{id}/checks": {
+      "status": [
+        "PENDING",
+        "RUNNING",
+        "PASSED",
+        "FAILED",
+        "PRE_EXISTING_FAILURE",
+        "BLOCKED",
+        "SKIPPED"
       ]
     },
     "GET /api/validations/{id}/findings": {

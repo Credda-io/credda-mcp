@@ -217,6 +217,15 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
               'caused, including the ones that resolved nothing; filtering resolutions by the ' +
               'same signal shows only the runs that produced a record.',
           ),
+        hasSignal: z
+          .boolean()
+          .optional()
+          .describe(
+            'Whether a signal raised it at all, rather than which one did. true is “raised by some ' +
+              'signal”, false is “raised by none”. The total comes back counted under this ' +
+              'filter, so limit 1 gives the exact count over the organisation. Cannot be sent ' +
+              'with signal: both narrow the one column, and the engine answers 400.',
+          ),
         state: vocabulary(
           'GET /api/investigations',
           'state',
@@ -236,6 +245,7 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
     (a: {
       repository?: string;
       signal?: string;
+      hasSignal?: boolean;
       state?: string;
       outcome?: string;
       limit?: number;
@@ -310,6 +320,15 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
       inputSchema: {
         investigation: z.string().min(1).optional().describe('Only records from this investigation.'),
         signal: z.string().min(1).optional().describe('Only records for this signal.'),
+        hasSignal: z
+          .boolean()
+          .optional()
+          .describe(
+            'Whether a signal raised it at all, rather than which one did. true is “raised by some ' +
+              'signal”, false is “raised by none”. The total comes back counted under this ' +
+              'filter, so limit 1 gives the exact count over the organisation. Cannot be sent ' +
+              'with signal: both narrow the one column, and the engine answers 400.',
+          ),
         confidence: vocabulary(
           'GET /api/resolutions',
           'confidence',
@@ -320,8 +339,14 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
         offset,
       },
     },
-    (a: { investigation?: string; signal?: string; confidence?: string; limit?: number; offset?: number }) =>
-      listResolutions(ctx, a),
+    (a: {
+      investigation?: string;
+      signal?: string;
+      hasSignal?: boolean;
+      confidence?: string;
+      limit?: number;
+      offset?: number;
+    }) => listResolutions(ctx, a),
   );
 
   register(
@@ -400,9 +425,20 @@ export function buildServer(options: CreddaMcpServerOptions = {}): McpServer {
         'expected, where that requirement came from, and its status. `baseStatus` is the ' +
         'load-bearing field -- FAILED there means the check was re-run at the base commit and ' +
         'passed, so this change caused the failure.' + UNTRUSTED,
-      inputSchema: { validationId: z.string().min(1).describe('Validation id.'), limit, offset },
+      inputSchema: {
+        validationId: z.string().min(1).describe('Validation id.'),
+        status: vocabulary(
+          'GET /api/validations/{id}/checks',
+          'status',
+          'Only checks with this status. The total comes back counted under it, so FAILED with ' +
+            'limit 1 is how many checks failed rather than how many failed on this page.',
+        ),
+        limit,
+        offset,
+      },
     },
-    (a: { validationId: string; limit?: number; offset?: number }) => listValidationChecks(ctx, a),
+    (a: { validationId: string; status?: string; limit?: number; offset?: number }) =>
+      listValidationChecks(ctx, a),
   );
 
   register(

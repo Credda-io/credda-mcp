@@ -112,6 +112,10 @@ const readmePath = (key: string) => key.replace(/\{id\}/g, ':id');
  * {@link UNWRAPPED}: an entry is a decision, not a gap.
  */
 const UNENUMERATED: Readonly<Record<string, string>> = {
+  hasSignal:
+    'The wire vocabulary is ["true","false","1","0"] for the reason includeDebug gives: a query ' +
+    'string carries strings. The tool takes a JSON boolean, which is the same fact in the type an ' +
+    'MCP client already has.',
   includeDebug:
     'The wire vocabulary is ["true","false","1","0"] because a query string carries strings. ' +
     'The tool takes a JSON boolean, which is the same fact in the type an MCP client already ' +
