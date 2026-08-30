@@ -254,7 +254,21 @@ npm install
 npm run typecheck
 npm test        # 59 tests
 npm run build
+npm run example # see it answer, with no key and no network
 ```
+
+### A worked example you can run
+
+[`examples/try-the-server.mjs`](examples/try-the-server.mjs) spawns the **built**
+server — `node dist/index.js`, over a real stdio transport, exactly the way an
+MCP client config launches it — points it at a loopback stub of the Credda API,
+lists the advertised tools, calls two of them, and asserts that every request
+that reached the stub was a `GET`. It needs no key, no account and no network.
+
+It is the only check that the published binary starts: the test suites build the
+server in-process from `src/`, so a `dist/index.js` that failed on boot would
+leave them green. The payloads are hand-written — this shows how the server is
+driven, and is not evidence about the engine.
 
 ## License
 
