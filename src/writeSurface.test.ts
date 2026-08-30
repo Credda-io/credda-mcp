@@ -176,10 +176,76 @@ describe('the tools that are advertised are the read tools', () => {
     for (const tool of carriers) {
       expect(tool.description?.toLowerCase(), tool.name).toContain('untrusted');
     }
-    const copy = tools.map((t) => t.description ?? '').join(' ').toLowerCase();
-    for (const overclaim of ['sanitis', 'sanitiz', 'safe to trust', 'injection-proof']) {
-      // "Nothing here filters it" is allowed; a claim to have cleaned it is not.
-      expect(copy.includes(overclaim) && !copy.includes('nothing here filters it')).toBe(false);
+    /* PER TOOL, and it was not. This joined every description into one string
+     * and allowed the overclaims anywhere in it as long as the phrase
+     * "nothing here filters it" appeared somewhere in it too -- so one tool's
+     * disclaimer licensed "sanitised" in all sixteen others, which is the
+     * opposite of what a per-tool description is for. The escape hatch is
+     * still available, to the tool that spends it. */
+    for (const tool of tools) {
+      const copy = (tool.description ?? '').toLowerCase();
+      const disclaims = copy.includes('nothing here filters it');
+      for (const overclaim of ['sanitis', 'sanitiz', 'safe to trust', 'injection-proof']) {
+        expect(copy.includes(overclaim) && !disclaims, `${tool.name} claims "${overclaim}"`).toBe(
+          false,
+        );
+      }
+    }
+  });
+
+  /**
+   * The README's one sentence about paging, held to the schemas.
+   *
+   * It read: "All of them page with `limit` (1-100, API default 50) and
+   * `offset` unless noted", and only `get_api_health` was noted. Five more
+   * tools take no page window at all, and the two event listings take
+   * `limit` up to 1000 rather than 100 -- so the sentence was wrong about
+   * seven of seventeen tools, in the section a caller reads to find out what
+   * they can ask for. Nothing compared it to a schema.
+   */
+  it('pages exactly where the README says it pages', async () => {
+    const tools = await listTools();
+    expect(tools.length).toBeGreaterThan(10);
+
+    const readme = readFileSync(join(here, '..', 'README.md'), 'utf8');
+    const paging = /Most page with[\s\S]*?\n\n/.exec(readme)?.[0] ?? '';
+    expect(paging, 'README no longer has the paging sentence this test checks').not.toBe('');
+
+    const properties = (tool: (typeof tools)[number]) =>
+      ((tool.inputSchema as JsonSchema).properties ?? {}) as Record<string, { maximum?: number }>;
+
+    const unpaged = tools.filter((t) => properties(t)['limit'] === undefined).map((t) => t.name);
+    /* Any bound that is not the ordinary 1-100 is an exception too, whatever
+     * it is. Naming 1000 here would have hidden the third value: the two event
+     * listings do not even agree with each other -- investigation events cap
+     * at 1000 and validation events at 500. */
+    const wide = tools
+      .filter((t) => {
+        const max = properties(t)['limit']?.maximum;
+        return max !== undefined && max !== 100;
+      })
+      .map((t) => t.name);
+
+    expect(unpaged.length + wide.length).toBeGreaterThan(0);
+    for (const name of [...unpaged, ...wide]) {
+      expect(paging, `${name} is an exception to the paging sentence and is not named in it`).
+        toContain(name);
+    }
+    /* A wider bound has to be the bound the README prints, not merely a
+     * mention of the tool: naming it and stating the wrong number is the
+     * failure this paragraph already had. */
+    for (const tool of tools) {
+      const max = properties(tool)['limit']?.maximum;
+      if (max === undefined || max === 100) continue;
+      expect(paging, `${tool.name} caps limit at ${String(max)} and the README does not say so`).
+        toContain(`1\u2013${String(max)}`);
+    }
+    /* And nothing is named as an exception that is not one. */
+    for (const named of paging.match(/`([a-z_]+)`/g) ?? []) {
+      const name = named.replaceAll('`', '');
+      if (!tools.some((t) => t.name === name)) continue;
+      expect([...unpaged, ...wide], `${name} is named as an exception and pages normally`).
+        toContain(name);
     }
   });
 });

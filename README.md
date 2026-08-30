@@ -30,6 +30,15 @@ delivered it: the GitHub App path opens one with no flag, for a run that reaches
 unless the caller sets `open-pull-request`, which defaults to `false`
 (`action/action.yml`).**
 
+**The Action has two modes, and the one above is the expensive half.**
+`mode: investigate` is what the paragraph above describes: a labelled
+report, a checkout, a container, and -- with a key -- a model. `mode: triage`
+reads a newly opened issue and either asks for the one thing that would make it
+runnable or says nothing at all, which is the right answer about half the time.
+It runs no repository code, starts no container, makes no model call and needs
+no API key, and it is the half a licence is metered against. `open-pull-request`
+is about `investigate`; there is nothing for triage to deliver.
+
 This package is not that engine. It is a [Model Context
 Protocol](https://modelcontextprotocol.io) server that lets an agent **read what
 Credda found**: investigations and their evidence, resolution records, and
@@ -117,8 +126,15 @@ build.
 
 ## Tools
 
-All read-only. All of them page with `limit` (1–100, API default 50) and
-`offset` unless noted.
+All read-only. Most page with `limit` (1–100, API default 50) and `offset`.
+Two exceptions, and this sentence used to have neither: the single-record
+tools `get_api_health`, `get_repository`, `get_investigation`, `get_resolution`,
+`get_latest_resolution` and `get_validation` take no page window at all, and
+`list_investigation_events` (1–1000) and `list_validation_events` (1–500) take
+a wider `limit` than the rest, because an event stream is read in one pass —
+and those two bounds are not the same as each other, which is the engine's
+choice and not a typo here. A test holds this paragraph to the tools' own
+schemas in both directions.
 
 | Tool | What it returns |
 |------|-----------------|
@@ -252,7 +268,7 @@ tool takes the JSON boolean that says the same thing.
 ```bash
 npm install
 npm run typecheck
-npm test        # 59 tests
+npm test
 npm run build
 npm run example # see it answer, with no key and no network
 ```
