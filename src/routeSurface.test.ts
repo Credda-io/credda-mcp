@@ -268,7 +268,7 @@ describe('the query vocabularies', () => {
   });
 });
 
-describe('the README route table', () => {
+describe('the README tables', () => {
   it('lists every wrapped route against the tool that serves it', () => {
     for (const [key, tool] of Object.entries(TOOLS)) {
       expect(
@@ -284,6 +284,25 @@ describe('the README route table', () => {
         true,
       );
     }
+  });
+
+  /*
+   * The route table was checked; the tool table above it was not. They are two
+   * different tables and a reader uses the second one -- it is the list of what
+   * this server can do, with a sentence each, and the route table is the
+   * appendix that says which endpoint each row reads. A tool removed from the
+   * tool table, or a row left behind for a tool that no longer exists, was
+   * invisible: the route table would still be complete and every assertion here
+   * would pass.
+   */
+  it('gives every advertised tool a row in the Tools table, and no row a tool that is gone', async () => {
+    const start = readme.indexOf('\n## Tools\n');
+    expect(start, 'the README no longer has a "Tools" section').not.toBe(-1);
+    const table = readme.slice(start, readme.indexOf('\n## ', start + 1));
+    const rows = [...table.matchAll(/^\| `([a-z_]+)` \| /gm)].map((m) => m[1]!);
+    const advertised = await advertisedTools();
+    expect(rows.length, 'the Tools table matched no rows; the extraction is wrong').toBeGreaterThan(0);
+    expect([...rows].sort()).toEqual([...advertised].sort());
   });
 
   it('claims no route the engine does not serve', () => {
