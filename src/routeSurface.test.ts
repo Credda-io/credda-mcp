@@ -266,6 +266,27 @@ describe('the query vocabularies', () => {
       expect(reason.trim().length, `${param} is left open with no reason`).toBeGreaterThan(40);
     }
   });
+
+  /*
+   * The README's "Filter vocabularies" section names the filters left open, and
+   * nothing held it to this map. It said `includeDebug` was "the one declared
+   * vocabulary deliberately not enumerated" while `hasSignal` sat beside it in
+   * UNENUMERATED -- a count of one over a list of two, in the section whose
+   * whole job is telling a reader which arguments are closed sets. A third
+   * exemption would have gone unmentioned the same way.
+   */
+  it('names in the README every filter it leaves open', () => {
+    const start = readme.indexOf('### Filter vocabularies');
+    expect(start, 'the README no longer has a "Filter vocabularies" section').not.toBe(-1);
+    const section = readme.slice(start);
+    const params = Object.keys(UNENUMERATED);
+    expect(params.length, 'nothing is excused, so this checked nothing').toBeGreaterThan(0);
+    for (const param of params) {
+      expect(section, `the README does not name the unenumerated filter ${param}`).toContain(
+        `\`${param}\``,
+      );
+    }
+  });
 });
 
 describe('the README tables', () => {

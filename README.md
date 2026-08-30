@@ -107,7 +107,7 @@ your own credentials.
 `@credda/mcp-server` is on npm, so `npx` fetches it with no checkout and no
 build.
 
-> **What `npx -y @credda/mcp-server` gets you today — checked 2026-08-29.** Not
+> **What `npx -y @credda/mcp-server` gets you today — re-checked 2026-08-30.** Not
 > this server. The latest version on npm is **0.2.0**, the retired trust-layer
 > server described in the warning at the top of this file; `1.0.0`, which this
 > README documents, is not published yet. The
@@ -254,7 +254,8 @@ published route surface, and the suite fails if it stops being.
 ### Filter vocabularies
 
 `signal`, `repository` and `investigation` are ids and are passed through as
-given. The rest -- `state`, `outcome`, `severity`, `status`, `type`, `kind`,
+given; `hasSignal` and `includeDebug` are booleans (see below). The rest --
+`state`, `outcome`, `severity`, `status`, `type`, `kind`,
 `confidence` -- are closed sets, and each is advertised **in the tool's input
 schema as an enum**, so a client that validates arguments rejects a wrong token
 before a request is made and a model reading the tool list never has to invent
@@ -275,10 +276,11 @@ the same Zod schemas its routes parse with, and carrying its own digest
 alongside the route digest. `src/routeSurface.test.ts` fails when a filter the
 engine declares a vocabulary for is offered here as open text, and
 `route-surface.consumers.json` in the engine fails **there**, naming this
-repository, when the copy goes stale. `includeDebug` is the one declared
-vocabulary deliberately not enumerated: its wire values are
-`"true" | "false" | "1" | "0"` because a query string carries strings, and the
-tool takes the JSON boolean that says the same thing.
+repository, when the copy goes stale. `includeDebug` and `hasSignal` are the two
+declared vocabularies deliberately not enumerated -- the pair listed in
+`UNENUMERATED` in `src/routeSurface.test.ts`, each with its reason. Both have
+the wire values `"true" | "false" | "1" | "0"`, because a query string carries
+strings, and both tools take the JSON boolean that says the same thing.
 
 ## Development
 
