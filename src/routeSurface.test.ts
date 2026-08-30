@@ -106,6 +106,41 @@ const KEYS = surface.routes.map((route) => `${route.method} ${route.path}`);
 /** The spelling the README uses for a path parameter. */
 const readmePath = (key: string) => key.replace(/\{id\}/g, ':id');
 
+/**
+ * The filters whose vocabulary the engine declares and this server deliberately
+ * does not advertise as a string enum, with the reason. Same rule as
+ * {@link UNWRAPPED}: an entry is a decision, not a gap.
+ */
+const UNENUMERATED: Readonly<Record<string, string>> = {
+  includeDebug:
+    'The wire vocabulary is ["true","false","1","0"] because a query string carries strings. ' +
+    'The tool takes a JSON boolean, which is the same fact in the type an MCP client already ' +
+    'has, and offering a model the choice between "1" and "true" would be four ways to say two.',
+};
+
+interface JsonSchema {
+  properties?: Record<string, { enum?: unknown[] }>;
+}
+
+async function advertisedSchemas(): Promise<Map<string, JsonSchema>> {
+  const server = buildServer({
+    apiBase: 'http://api.test',
+    apiKey: 'k',
+    fetchImpl: async () =>
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+  });
+  const client = new Client({ name: 'vocabulary-guard', version: '0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  try {
+    const { tools } = await client.listTools();
+    return new Map(tools.map((t) => [t.name, (t.inputSchema ?? {}) as JsonSchema]));
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}
+
 async function advertisedTools(): Promise<string[]> {
   const server = buildServer({
     apiBase: 'http://api.test',
@@ -166,6 +201,66 @@ describe('the engine route surface', () => {
     const mapped = Object.values(TOOLS);
     expect(new Set(mapped).size, 'a tool serves two routes').toBe(mapped.length);
     expect([...mapped].sort()).toEqual((await advertisedTools()).sort());
+  });
+});
+
+describe('the query vocabularies', () => {
+  /*
+   * A route table says WHICH filters exist. Until the artifact carried the
+   * vocabularies, the schemas here said `z.string().min(1)` and "the API
+   * rejects an unknown one", which leaves the one caller this server has --- a
+   * model --- to guess `REPRODUCED_NOT_DIAGNOSED` from the word `outcome`. It
+   * cannot, so it guesses, collects a 400, and spends another turn. These
+   * assertions are what stops a filter silently going back to free text.
+   */
+  it('is stamped with a digest over its own block', () => {
+    const digest = `sha256-${createHash('sha256').update(JSON.stringify(surface.vocabularies)).digest('hex')}`;
+    expect(digest, 'src/route-surface.json was modified after generation; re-copy it from core').toBe(
+      surface.vocabularyDigest,
+    );
+  });
+
+  it('names only routes the engine serves, and only ones this server wraps', () => {
+    for (const key of Object.keys(surface.vocabularies)) {
+      expect(KEYS, `${key} carries a vocabulary but is not a route the engine serves`).toContain(key);
+      expect(
+        key in TOOLS || key in UNWRAPPED,
+        `${key} carries a vocabulary and is neither wrapped nor refused`,
+      ).toBe(true);
+    }
+  });
+
+  it('is offered to the model as a closed set by the tool that wraps the route', async () => {
+    const tools = await advertisedSchemas();
+    for (const [key, params] of Object.entries(
+      surface.vocabularies as Record<string, Record<string, readonly string[]>>,
+    )) {
+      const tool = TOOLS[key];
+      if (tool === undefined) continue; // an unwrapped route advertises nothing.
+      const schema = tools.get(tool);
+      expect(schema, `${tool} advertises no input schema`).toBeDefined();
+      for (const [param, values] of Object.entries(params)) {
+        if (param in UNENUMERATED) continue;
+        const property = schema!.properties?.[param];
+        expect(property, `${tool} does not accept ${param}, which ${key} filters by`).toBeDefined();
+        expect(
+          property!.enum,
+          `${tool}.${param} is open text; the engine declares a closed set and a model cannot guess it`,
+        ).toEqual([...values]);
+      }
+    }
+  });
+
+  it('gives every filter left open a reason, not a silence', () => {
+    const declared = new Set(
+      Object.values(surface.vocabularies as Record<string, Record<string, readonly string[]>>).flatMap(
+        (params) => Object.keys(params),
+      ),
+    );
+    for (const [param, reason] of Object.entries(UNENUMERATED)) {
+      expect(declared, `${param} is excused but the engine declares no vocabulary for it`).toContain(param);
+      expect(reason.trim().length, `${param} is left open with no reason`).toBeGreaterThan(40);
+    }
   });
 });
 

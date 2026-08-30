@@ -218,18 +218,41 @@ published route surface, and the suite fails if it stops being.
 - `GET /openapi.json` — the engine's own specification. A model that can call
   the tools above does not need the document describing routes it cannot reach.
 
-Filter values (`state`, `outcome`, `signal`, `severity`, `status`, `type`,
-`kind`, `confidence`) are passed
-through as given and validated by the API, which rejects an unknown one with a
-400. This package does not keep its own copy of those enumerations, so it cannot
-drift from them.
+### Filter vocabularies
+
+`signal`, `repository` and `investigation` are ids and are passed through as
+given. The rest -- `state`, `outcome`, `severity`, `status`, `type`, `kind`,
+`confidence` -- are closed sets, and each is advertised **in the tool's input
+schema as an enum**, so a client that validates arguments rejects a wrong token
+before a request is made and a model reading the tool list never has to invent
+one.
+
+They used to be typed as free strings, documented as "validated by the API,
+which rejects an unknown one with a 400". That is true, and it is useless to the
+only caller this server has. Nothing about the word `outcome` says that a run
+which reproduced a failure without establishing its cause is
+`REPRODUCED_NOT_DIAGNOSED`, or that evidence showing the repository's own test
+already asserts the reported behaviour is a `SPECIFICATION`. A model guesses
+`fixed`, collects the 400, and spends another turn -- each one arriving with
+more untrusted repository text in its context.
+
+The 28 investigation states are not transcribed here. They come from the
+`vocabularies` block of `src/route-surface.json`, generated in the engine from
+the same Zod schemas its routes parse with, and carrying its own digest
+alongside the route digest. `src/routeSurface.test.ts` fails when a filter the
+engine declares a vocabulary for is offered here as open text, and
+`route-surface.consumers.json` in the engine fails **there**, naming this
+repository, when the copy goes stale. `includeDebug` is the one declared
+vocabulary deliberately not enumerated: its wire values are
+`"true" | "false" | "1" | "0"` because a query string carries strings, and the
+tool takes the JSON boolean that says the same thing.
 
 ## Development
 
 ```bash
 npm install
 npm run typecheck
-npm test        # 47 tests
+npm test        # 59 tests
 npm run build
 ```
 
