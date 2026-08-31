@@ -5,7 +5,7 @@
   </a>
 </p>
 
-> Source mirror for [`@credda/mcp-server`](https://www.npmjs.com/package/@credda/mcp-server). Install from npm: `npm install -g @credda/mcp-server`. Canonical development happens in Credda internal tooling; this repo is for source and issues.
+> Source mirror for [`@credda/mcp-server`](https://www.npmjs.com/package/@credda/mcp-server). **Do not install from npm yet:** the latest published version is **0.2.0**, the retired trust-layer server, so `npm install -g @credda/mcp-server` today gives you the product this page says is gone. The `1.0.0` described here is unpublished on purpose — see [RELEASE.md](RELEASE.md) and the warning below. Canonical development happens in Credda internal tooling; this repo is for source and issues.
 
 # @credda/mcp-server
 
