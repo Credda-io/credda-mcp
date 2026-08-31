@@ -27,8 +27,10 @@ looking for defects — the input is a labelled report. It proposes; it never
 merges. Whether the diff becomes a pull request depends on which mechanism
 delivered it: the GitHub App path opens one with no flag, for a run that reaches
 `READY_FOR_REVIEW` with a proven verdict, while the GitHub Action opens none
-unless the caller sets `open-pull-request`, which defaults to `false`
-(`action/action.yml`).**
+unless the caller sets `open-pull-request`, which defaults to `false` -- and
+that input is declared on no version a caller can reach, being absent from
+`action.yml` at the `v1` tag and on the action's default branch alike, so
+setting it today parses, runs green and delivers nothing.**
 
 **The Action has two modes, and the one above is the expensive half.**
 `mode: investigate` is what the paragraph above describes: a labelled
