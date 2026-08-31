@@ -19,6 +19,7 @@
  * can, because there is none.
  */
 
+import { CreddaApiError } from './apiClient.js';
 import type { CreddaApi, QueryValue } from './apiClient.js';
 
 export interface ToolContext {
@@ -201,9 +202,41 @@ export async function listValidationEvidence(
 
 /**
  * `GET /api/health`. Readiness, established by doing the thing it claims:
- * database, migration state and artifact store. Answers 503 when degraded,
- * which arrives here as an error carrying the same body.
+ * database, migration state and artifact store.
+ *
+ * A DEGRADED ENGINE ANSWERS 503 AND THE REPORT COMES BACK ANYWAY. This
+ * docblock used to say the 503 "arrives here as an error carrying the same
+ * body", and that was not true of the code underneath it. The 503 body is the
+ * readiness report -- `status`, `schemaVersion`, `expectedSchemaVersion` and a
+ * `checks` array naming exactly what failed -- and it carries no `error` key,
+ * so the client read it for a code it does not have and threw the report away.
+ * What actually reached the model was the string "503 from /api/health": the
+ * one question the tool exists to answer, unanswered, at the moment it matters.
+ *
+ * So the 503 is unwrapped rather than raised. Both other clients over this API
+ * already do it -- `@credda/js` through `getAllowing('/api/health', 503)`, and
+ * `credda-go` by returning the Readiness beside the error -- and this was the
+ * only one of the three that lost the body.
+ *
+ * ONLY 503, AND ONLY WITH A BODY THAT IS ONE. A 401 from the auth gate and a
+ * 500 are still errors, and a 503 from something that is not the engine (an
+ * ingress with no body, an HTML maintenance page) has no report in it to
+ * return; those re-raise unchanged. `status` is what the route always sets and
+ * is what distinguishes a readiness report from anything else answering 503.
  */
 export async function getApiHealth(ctx: ToolContext) {
-  return ctx.api.get('/api/health');
+  try {
+    return await ctx.api.get('/api/health');
+  } catch (err) {
+    if (
+      err instanceof CreddaApiError &&
+      err.status === 503 &&
+      typeof err.body === 'object' &&
+      err.body !== null &&
+      'status' in err.body
+    ) {
+      return err.body;
+    }
+    throw err;
+  }
 }

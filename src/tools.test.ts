@@ -180,3 +180,77 @@ describe('the API client', () => {
     expect((err as CreddaApiError).message).toContain('http://api.test');
   });
 });
+
+/**
+ * The degraded-engine path, which is the one a caller reaches for when
+ * something is wrong and the one that used to answer with the least.
+ */
+describe('a degraded engine still returns its readiness report', () => {
+  const REPORT = {
+    status: 'degraded',
+    schemaVersion: 41,
+    expectedSchemaVersion: 42,
+    checks: [
+      { name: 'database', ok: true },
+      { name: 'migrations', ok: false, detail: 'schema 41, expected 42' },
+    ],
+  };
+
+  const respond = (status: number, body: unknown, json = true) =>
+    vi.fn(async () =>
+      json
+        ? new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        : new Response(String(body), { status, headers: { 'content-type': 'text/html' } }),
+    ) as unknown as typeof fetch;
+
+  it('keeps the parsed body on the error rather than dropping it', async () => {
+    // The 503 body of /api/health has no `error` key, so before `body` existed
+    // the whole report was parsed and then discarded on the way out.
+    const api = createApiClient({ apiBase: 'http://api.test', fetchImpl: respond(503, REPORT) });
+    const err = (await api.get('/api/health').catch((e: unknown) => e)) as CreddaApiError;
+    expect(err).toBeInstanceOf(CreddaApiError);
+    expect(err.status).toBe(503);
+    expect(err.code).toBe('HTTP_ERROR');
+    expect(err.body).toEqual(REPORT);
+  });
+
+  it('hands getApiHealth the checks instead of "503 from /api/health"', async () => {
+    const ctx: ToolContext = {
+      api: createApiClient({ apiBase: 'http://api.test', fetchImpl: respond(503, REPORT) }),
+    };
+    await expect(getApiHealth(ctx)).resolves.toEqual(REPORT);
+  });
+
+  it('still returns a healthy 200 report unchanged', async () => {
+    const ok = { status: 'ok', schemaVersion: 42, expectedSchemaVersion: 42, checks: [] };
+    const ctx: ToolContext = {
+      api: createApiClient({ apiBase: 'http://api.test', fetchImpl: respond(200, ok) }),
+    };
+    await expect(getApiHealth(ctx)).resolves.toEqual(ok);
+  });
+
+  it('does not swallow a 503 that carries no readiness report', async () => {
+    // An ingress in front of the engine, answering with its own page. There is
+    // nothing in it to return, so it stays an error.
+    const ctx: ToolContext = {
+      api: createApiClient({
+        apiBase: 'http://api.test',
+        fetchImpl: respond(503, '<html>maintenance</html>', false),
+      }),
+    };
+    await expect(getApiHealth(ctx)).rejects.toBeInstanceOf(CreddaApiError);
+  });
+
+  it('does not swallow a refusal from the auth gate', async () => {
+    const ctx: ToolContext = {
+      api: createApiClient({
+        apiBase: 'http://api.test',
+        fetchImpl: respond(401, { error: { code: 'UNAUTHENTICATED', message: 'no key' } }),
+      }),
+    };
+    await expect(getApiHealth(ctx)).rejects.toMatchObject({ status: 401, code: 'UNAUTHENTICATED' });
+  });
+});

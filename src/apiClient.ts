@@ -42,6 +42,21 @@ export class CreddaApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /**
+     * The parsed response body, when there was one.
+     *
+     * Not every non-2xx body is the error envelope, and the one that matters
+     * is `/api/health`: a degraded engine answers 503 with the full readiness
+     * report -- `status`, `schemaVersion`, and a `checks` array naming what
+     * failed -- which has no `error` key at all. Until this field existed that
+     * whole report was parsed, read for an `error.code` it does not have, and
+     * dropped, leaving the caller with the string "503 from /api/health". The
+     * checks are the entire reason to call the route.
+     *
+     * `unknown`, because this is whatever the server sent. A caller that wants
+     * a shape narrows it; see `getApiHealth`.
+     */
+    readonly body: unknown = null,
   ) {
     super(message);
     this.name = 'CreddaApiError';
@@ -87,6 +102,7 @@ export function createApiClient(options: ApiClientOptions = {}): CreddaApi {
           response.status,
           envelope?.code ?? 'HTTP_ERROR',
           envelope?.message ?? `${String(response.status)} from ${path}`,
+          body,
         );
       }
       return body;
