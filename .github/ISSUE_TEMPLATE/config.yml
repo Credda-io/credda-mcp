@@ -1,0 +1,21 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/Credda-io/credda-mcp/security/advisories/new
+    about: Do not open a public issue for something exploitable. See SECURITY.md.
+  - name: You want a tool that writes something
+    url: https://github.com/Credda-io/credda-mcp/blob/main/README.md
+    about: >
+      This server is reads only, deliberately, and a test enforces it. That is
+      a decision rather than a gap. The README says why.
+  - name: You got the retired trust-layer server
+    url: https://github.com/Credda-io/credda-mcp/blob/main/CHANGELOG.md
+    about: >
+      0.1.x and 0.2.x were a different product. Every tool, resource and
+      environment variable from 0.x is gone. Pin 0.2.0 if you depend on it.
+  - name: What Credda is
+    url: https://credda.io
+    about: >
+      You label a bug report or a vulnerability, Credda reproduces it, diagnoses
+      it, and proves a patch with a test that fails before and passes after.
+      It proposes; it never merges. This server only reads what it found.

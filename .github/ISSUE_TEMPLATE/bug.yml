@@ -1,0 +1,81 @@
+name: A tool returned the wrong thing
+description: One of the fifteen read tools errored, or answered other than the API did.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The most common report here is not a bug.** This server exposes reads
+        and nothing else — fifteen tools, every one a GET. It cannot start an
+        investigation, spend a budget, apply a patch or open a pull request, and
+        `src/writeSurface.test.ts` fails the build if that ever stops being
+        true. "There is no tool for X" where X writes is working as designed.
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Which tool
+      options:
+        - list_repositories
+        - list_repository_learnings
+        - list_investigations
+        - get_investigation
+        - list_investigation_events
+        - list_investigation_evidence
+        - list_resolutions
+        - get_latest_resolution
+        - get_resolution
+        - list_validations
+        - get_validation
+        - list_validation_checks
+        - list_validation_findings
+        - list_validation_evidence
+        - get_api_health
+        - none of these — the server would not start
+    validations:
+      required: true
+  - type: textarea
+    id: call
+    attributes:
+      label: The arguments you passed, and what came back
+      description: >
+        **The call and the result, as two literals.** The arguments object
+        exactly as the client sent it, then the tool result exactly as it
+        arrived — not a description of either. If the result was an error, the
+        error text is the diagnosis and a paraphrase of it is not.
+
+
+        Redact identifiers you consider private. The tool names, the argument
+        *shapes* and the error text are what is needed; the contents of your
+        repository are not.
+      render: json
+      placeholder: |
+        // arguments
+        { "investigationId": "inv_01H...", "limit": 50 }
+
+        // result
+        { "error": "Unexpected end of JSON input" }
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: >
+        If the API returns something different from the tool for the same query,
+        say so and give both — that is the strongest form of this report, because
+        this server is a thin client and a mismatch localises the bug to it.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: '@credda/mcp-server version, Node version, and which MCP client'
+    validations:
+      required: true
+  - type: input
+    id: auth
+    attributes:
+      label: Which CREDDA_AUTH mode, and which CREDDA_API_BASE shape
+      description: >
+        The mode and the deployment shape — your own host, or api.credda.io.
+        **Never paste CREDDA_API_KEY**, here or anywhere.

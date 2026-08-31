@@ -23,7 +23,10 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "example": "npm run build && node examples/try-the-server.mjs",
+    "check": "npm run typecheck && npm test && npm run build",
+    "prepublishOnly": "npm run check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -47,7 +50,7 @@
     "mcp",
     "model-context-protocol",
     "ai-agents",
-    "bug-finding",
+    "bug-reproduction",
     "security-vulnerabilities",
     "root-cause-analysis",
     "code-review"

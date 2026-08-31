@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   listRepositories,
+  getRepository,
   listRepositoryLearnings,
   listInvestigations,
   getInvestigation,
@@ -24,6 +25,7 @@ import {
   listValidationChecks,
   listValidationFindings,
   listValidationEvidence,
+  listValidationEvents,
   getApiHealth,
   type ToolContext,
 } from './tools.js';
@@ -38,6 +40,7 @@ function fakeApi(result: unknown = { ok: true }) {
 /** The path each handler must ask for, and the query it must build. */
 const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<string, unknown> | undefined][] = [
   ['list_repositories', (c) => listRepositories(c, { limit: 10, offset: 5 }), '/api/repositories', { limit: 10, offset: 5 }],
+  ['get_repository', (c) => getRepository(c, { repositoryId: 'repo 1' }), '/api/repositories/repo%201', undefined],
   [
     'list_repository_learnings',
     (c) => listRepositoryLearnings(c, { repositoryId: 'repo 1', kind: 'INVARIANT', limit: 2 }),
@@ -46,9 +49,22 @@ const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<str
   ],
   [
     'list_investigations',
-    (c) => listInvestigations(c, { state: 'COMPLETED' }),
+    (c) =>
+      listInvestigations(c, {
+        repository: 'repo_1',
+        signal: 'sig_1',
+        state: 'READY_FOR_REVIEW',
+        outcome: 'VERIFIED',
+      }),
     '/api/investigations',
-    { state: 'COMPLETED', limit: undefined, offset: undefined },
+    {
+      repository: 'repo_1',
+      signal: 'sig_1',
+      state: 'READY_FOR_REVIEW',
+      outcome: 'VERIFIED',
+      limit: undefined,
+      offset: undefined,
+    },
   ],
   ['get_investigation', (c) => getInvestigation(c, { investigationId: 'inv_1' }), '/api/investigations/inv_1', undefined],
   [
@@ -91,15 +107,21 @@ const cases: [string, (ctx: ToolContext) => Promise<unknown>, string, Record<str
   ],
   [
     'list_validation_findings',
-    (c) => listValidationFindings(c, { validationId: 'val_1' }),
+    (c) => listValidationFindings(c, { validationId: 'val_1', severity: 'HIGH', status: 'OPEN' }),
     '/api/validations/val_1/findings',
-    { limit: undefined, offset: undefined },
+    { severity: 'HIGH', status: 'OPEN', limit: undefined, offset: undefined },
   ],
   [
     'list_validation_evidence',
-    (c) => listValidationEvidence(c, { validationId: 'val_1' }),
+    (c) => listValidationEvidence(c, { validationId: 'val_1', type: 'TEST_RESULT' }),
     '/api/validations/val_1/evidence',
-    { limit: undefined, offset: undefined },
+    { type: 'TEST_RESULT', limit: undefined, offset: undefined },
+  ],
+  [
+    'list_validation_events',
+    (c) => listValidationEvents(c, { validationId: 'val 1', since: 12, limit: 100, includeDebug: true }),
+    '/api/validations/val%201/events',
+    { since: 12, limit: 100, includeDebug: true },
   ],
   ['get_api_health', (c) => getApiHealth(c), '/api/health', undefined],
 ];
@@ -165,6 +187,33 @@ describe('the API client', () => {
       code: 'NOT_FOUND',
       message: 'No such investigation: inv_9',
     });
+  });
+
+  it('names the variable to set when the API rejects the key', async () => {
+    // The API's own 401 text says what it saw and not what to change. The
+    // reader is somebody editing an MCP client config, so the message has to
+    // carry the variable name that config sets.
+    const api = createApiClient({
+      apiBase: 'http://api.test',
+      apiKey: 'wrong',
+      fetchImpl: respond(401, { error: { code: 'UNAUTHENTICATED', message: 'Invalid API key' } }),
+    });
+    const err = (await api.get('/api/health').catch((e: unknown) => e)) as CreddaApiError;
+    expect(err.status).toBe(401);
+    expect(err.code).toBe('UNAUTHENTICATED');
+    // The API's own words survive; the guidance is appended, not substituted.
+    expect(err.message).toContain('Invalid API key');
+    expect(err.message).toContain('CREDDA_API_KEY');
+    expect(err.message).toContain('http://api.test');
+  });
+
+  it('leaves a non-401 message exactly as the API wrote it', async () => {
+    const api = createApiClient({
+      apiBase: 'http://api.test',
+      fetchImpl: respond(403, { error: { code: 'FORBIDDEN', message: 'Not your organisation' } }),
+    });
+    const err = (await api.get('/api/health').catch((e: unknown) => e)) as CreddaApiError;
+    expect(err.message).toBe('Not your organisation');
   });
 
   it('says where it tried to reach when the API is not running', async () => {
