@@ -23,8 +23,7 @@
 **Credda takes a bug report or a security vulnerability somebody already
 filed, reproduces the failure, diagnoses the cause, writes the patch, and
 proves it with a test that fails before and passes after. It does not go
-looking for defects — the input is a labelled report. It proposes; it never
-merges. Whether the diff becomes a pull request depends on which mechanism
+looking for defects — the input is a labelled report. It proposes. It never merges. Whether the diff becomes a pull request depends on which mechanism
 delivered it: the GitHub App path opens one with no flag, for a run that reaches
 `READY_FOR_REVIEW` with a proven verdict, while the GitHub Action opens none
 unless the caller sets `open-pull-request`, which defaults to `false` -- and
